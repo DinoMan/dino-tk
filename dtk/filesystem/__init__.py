@@ -1,5 +1,5 @@
 import os
-from .filtering import Filter
+from .filtering import Filter, PatternExtractor, Tagger
 
 def list_files(folder, file_filter=None):
     file_list = []

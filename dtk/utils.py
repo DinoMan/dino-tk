@@ -29,4 +29,3 @@ def group_factors(factors, optimal_factor=4):
 
     groups.append(reduce(operator.mul, group, 1))
     return sorted(groups)
-
