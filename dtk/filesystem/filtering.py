@@ -19,7 +19,7 @@ class Tagger():
 
 
 class PatternExtractor():
-    def __init__(self, regex, start=0, end=-1, criterion=None):
+    def __init__(self, regex, start=0, end=None, criterion=None):
         if criterion is None:
             self.criterion = Filter()
 
@@ -30,7 +30,10 @@ class PatternExtractor():
     def __call__(self, string):
         if self.criterion(string):
             match_limits = self.regex.search(string)
-            return string[match_limits.start():match_limits.end() + 1][self.start:self.end]
+            if self.end is None:
+                return string[match_limits.start():match_limits.end() + 1][self.start:]
+            else:
+                return string[match_limits.start():match_limits.end() + 1][self.start:self.end]
         else:
             return ""
 
