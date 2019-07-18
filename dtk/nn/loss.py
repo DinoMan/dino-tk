@@ -24,7 +24,7 @@ class GradientPenalty(nn.Module):
                                   create_graph=True, retain_graph=True, only_inputs=True)[0]
 
         # Returns the gradient penalty which is Gr^2 - 1 scaled by the lambda factor
-        gradients = gradients.view(real.size()[0], -1)
+        gradients = gradients.contiguous().view(real.size()[0], -1)
         # calculate the gradient norm and add epsilon
         gradients_norm = torch.sqrt(torch.sum(gradients ** 2, dim=1) + 1e-12)
         # Return gradient penalty

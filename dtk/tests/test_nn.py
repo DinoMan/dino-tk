@@ -54,7 +54,6 @@ class Cutting(unittest.TestCase):
         self.assertEqual(cut_seq.max(), 8, "maximum should be 8")
         self.assertEqual(cut_seq[3, 2], 0, "last element should be padding")
 
-
         t = torch.tensor(range(1, 9))
         cut_seq = dnn.cut_n_stack(t, 4, cutting_stride=3, pad_samples=2)
         self.assertEqual(cut_seq.size(), (3, 4), "dimension should be (3, 4)")
@@ -62,6 +61,32 @@ class Cutting(unittest.TestCase):
         self.assertEqual(cut_seq[2, 3], 0, "last element should be padding")
         self.assertEqual(cut_seq[0, 0], 0, "first element should be padding")
 
+
+class Sampling(unittest.TestCase):
+
+    def test_sampling(self):
+        t = torch.zeros([3, 10, 1])
+        length = 8
+        l = []
+        for i in range(3):
+            l.append(length)
+            for j in range(length):
+                t[i, j] = j + 1
+
+            length += 1
+
+        t_samples = dnn.subsample_batch(t, 5)
+        self.assertEqual(t_samples.size(), (3, 5, 1), "dimension should be (3, 5, 1)")
+
+        t_samples = dnn.subsample_batch(t, 4)
+        self.assertEqual(t_samples.size(), (3, 4, 1), "dimension should be (3, 4, 1)")
+
+        t_samples = dnn.subsample_batch(t, 8, lengths=l)
+        print(t_samples)
+        self.assertEqual(t_samples.size(), (3, 8, 1), "dimension should be (3, 8, 1)")
+        self.assertEqual(t_samples[0, 7], 8, "No elements should correspond to padding")
+        self.assertGreaterEqual(t_samples[1, 7], 8, "No elements should correspond to padding")
+        self.assertGreaterEqual(t_samples[2, 7], 8, "No elements should correspond to padding")
 
 
 if __name__ == '__main__':
