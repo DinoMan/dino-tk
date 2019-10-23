@@ -39,23 +39,30 @@ class PatternExtractor():
 
 
 class ExtensionMatcher():
-    def __init__(self, extension):
-        self.extension = extension
+    def __init__(self, ext):
+        if 'basestring' not in globals():
+            basestring = str
+
+        if isinstance(ext, basestring):
+            self.extensions = [ext]
+        else:
+            self.extensions = ext
 
     def __call__(self, string):
-        return os.path.splitext(string)[1] == self.extension
+        extension = os.path.splitext(string)[1]
+        return extension in self.extensions
 
 
 class Filter():
-    def __init__(self, is_file=False, extension=None, regex=[]):
+    def __init__(self, is_file=False, ext=None, regex=[]):
         self.rules = []
         self.negative_rules = []
 
-        if extension is not None:
-            self.__has_extension__(extension)
+        if ext is not None:
+            self.rules.append(ExtensionMatcher(ext))
 
         if is_file:
-            self.__is_file__()
+            self.rules.append(os.path.isfile)
 
         for r in regex:
             self.__add_regex__(r)
@@ -73,7 +80,6 @@ class Filter():
         new_filter = Filter()
         new_filter.rules = self.negative_rules
         new_filter.negative_rules = self.rules
-        new_filter.extension = self.extension
 
         return new_filter
 
@@ -84,21 +90,8 @@ class Filter():
         new_filter.negative_rules += self.negative_rules
         new_filter.negative_rules += other.negative_rules
 
-        if self.extension is not None:
-            new_filter.extension = self.extension
-        elif other.extension is not None:
-            new_filter.extension = other.extension
         return new_filter
 
     def __add_regex__(self, regex):
         regex = re.compile(regex)
         self.rules.append(regex.search)
-
-    def __is_file__(self):
-        self.rules.append(os.path.isfile)
-
-    def __has_extension__(self, ext):
-        self.rules.append(ExtensionMatcher(ext))
-
-    def __matches_extension__(self, string):
-        return os.path.splitext(string)[1] == self.extension

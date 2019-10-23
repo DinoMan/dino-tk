@@ -43,9 +43,11 @@ class ContrastiveLoss(nn.Module):
     def __init__(self, margin=20.0):
         super(ContrastiveLoss, self).__init__()
         self.margin = margin
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, dist_sq, target):
-        losses = 0.5 * (target.float() * dist_sq + (1 - target).float() * F.relu(self.margin - dist_sq.sqrt()).pow(2))
+        losses = 0.5 * (
+                target.float() * dist_sq + (1 - target).float() * self.relu(self.margin - dist_sq.sqrt()).pow(2))
         return losses.mean()
 
 
@@ -97,7 +99,6 @@ class L1Loss(nn.Module):
 
 
 class L2Loss(nn.Module):
-
     def __init__(self):
         super(L2Loss, self).__init__()
 

@@ -5,6 +5,7 @@ import torch.nn as nn
 import random
 
 
+
 def pad_both_ends(tensor, left, right, dim=0):
     no_dims = len(tensor.size())
     if dim == -1:
@@ -40,6 +41,16 @@ def cut_n_stack(seq, snip_length, cut_dim=0, cutting_stride=None, pad_samples=0)
     for i in range(1, iterations):
         stacked = torch.cat((stacked, seq.narrow(cut_dim, i * cutting_stride, snip_length).unsqueeze(0)))
     return stacked
+
+
+def create_windowed_sequence(seqs, snip_length, cut_dim=0, cutting_stride=None, pad_samples=0):
+    windowed_seqs = []
+    lengths = []
+    for seq in seqs:
+        windowed_seqs.append(cut_n_stack(seq, snip_length, cut_dim, cutting_stride, pad_samples).unsqueeze(0))
+        lengths.append(windowed_seqs[-1].size(1))
+
+    return torch.cat(windowed_seqs), lengths
 
 
 def pad_n_stack_sequences(seq_list, order=None, max_length=None):
@@ -127,6 +138,13 @@ def calculate_output_size(in_size, kernel_size, stride, padding):
     return int((in_size + padding - kernel_size) / stride) + 1
 
 
+def calculate_receptive_field(kernels, strides, jump=1, receptive=1):
+    for s, k in zip(strides, kernels):
+        receptive = receptive + (k - 1) * jump
+        jump = jump * s
+    return receptive
+
+
 def subsample_batch(tensor, sample_size, lengths=None):
     batch_size = tensor.size(0)
     if lengths is None:
@@ -138,3 +156,18 @@ def subsample_batch(tensor, sample_size, lengths=None):
         tensor_list.append(tensor[i, start:start + sample_size])
 
     return torch.stack(tensor_list)
+
+
+def broadcast_elements(batch, repeat_no):
+    total_tensors = []
+    for i in range(0, batch.size()[0]):
+        total_tensors += [torch.stack(repeat_no * [batch[i]])]
+
+    return torch.stack(total_tensors)
+
+
+def model_size(model, only_trainable=False):
+    if only_trainable:
+        sum(p.numel() for p in model.parameters() if p.requires_grad)
+    else:
+        return sum(p.numel() for p in model.parameters())

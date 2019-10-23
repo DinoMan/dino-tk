@@ -1,6 +1,8 @@
 from functools import reduce
 import operator
 
+def is_power2(num):
+    return num != 0 and ((num & (num - 1)) == 0)
 
 def prime_factors(number):
     factor = 2
