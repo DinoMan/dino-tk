@@ -1,8 +1,6 @@
 import unittest
 import torch
-
 import dtk.nn as dnn
-
 
 class Padding(unittest.TestCase):
 

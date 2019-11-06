@@ -1,15 +1,17 @@
 import os
 from .filtering import Filter, PatternExtractor, Tagger
-import glob
+import re
 
 
 def find_extensions(file_name):
-    extensions = []
+    path = os.path.dirname(file_name)
+    name = os.path.basename(file_name)
 
-    for name in glob.glob(file_name + '*'):
-        extensions.append(os.path.splitext(name)[1])
+    files = os.listdir(path)
+    rx = r'({0}\.\w\w\w)'.format(name)
 
-    return extensions
+    matched_files = re.findall(rx, " ".join(files))
+    return [os.path.splitext(m)[1] for m in matched_files]
 
 
 def list_files(folder, file_filter=None):
