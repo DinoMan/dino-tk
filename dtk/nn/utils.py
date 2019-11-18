@@ -5,7 +5,6 @@ import torch.nn as nn
 import random
 
 
-
 def pad_both_ends(tensor, left, right, dim=0):
     no_dims = len(tensor.size())
     if dim == -1:
@@ -106,27 +105,45 @@ def get_current_lr(optimizer):
         return param_group['lr']
 
 
-def initialize_weights(net, initialisation=None, bias=None):
-    for m in net.modules():
-        if isinstance(m, nn.Linear) or isinstance(m, nn.Conv1d) or isinstance(m, nn.Conv2d) or isinstance(m, nn.Conv3d) \
-                or isinstance(m, nn.ConvTranspose1d) or isinstance(m, nn.ConvTranspose2d) \
-                or isinstance(m, nn.ConvTranspose3d):
-            if initialisation is None:
-                torch.nn.init.xavier_normal_(m.weight)
-            else:
-                m.weight.data.normal_(initialisation[0], initialisation[1])
+def initialization(weights, type='xavier', init=None):
+    if type == 'normal':
+        if init is None:
+            torch.nn.init.normal_(weights)
+        else:
+            torch.nn.init.normal_(weights, mean=init[0], std=init[1])
+    elif type == 'xavier':
+        if init is None:
+            torch.nn.init.xavier_normal_(weights)
+        else:
+            torch.nn.init.xavier_normal_(weights, gain=init)
+    elif type == 'kaiming':
+        torch.nn.init.kaiming_normal_(weights)
+    elif type == 'orthogonal':
+        if init is None:
+            torch.nn.init.orthogonal_(weights)
+        else:
+            torch.nn.init.orthogonal_(weights, gain=init)
+    else:
+        raise NotImplementedError('Unknown initialization method')
 
-            if bias is not None:
-                m.bias.data.zero_()
 
+def initialize_weights(net, type='xavier', init=None, init_bias=False, batchnorm_shift=None):
+    def init_func(m):
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+            initialization(m.weight, type=type, init=init)
+            if init_bias and hasattr(m, 'bias') and m.bias is not None:
+                torch.nn.init.constant_(m.bias.data, 0.0)
+        elif classname.find('BatchNorm') != -1 and batchnorm_shift is not None:
+            torch.nn.init.normal_(m.weight, 1.0, batchnorm_shift)
+            torch.nn.init.constant_(m.bias, 0.0)
         elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
             for layer_params in m._all_weights:
                 for param in layer_params:
                     if 'weight' in param:
-                        if initialisation is None:
-                            nn.init.xavier_normal_(m._parameters[param])
-                        else:
-                            nn.init.normal_(m._parameters[param], initialisation[0], initialisation[1])
+                        initialization(m._parameters[param])
+
+    net.apply(init_func)
 
 
 def same_padding(kernel_size, stride=1, in_size=0):
@@ -145,17 +162,19 @@ def calculate_receptive_field(kernels, strides, jump=1, receptive=1):
     return receptive
 
 
-def subsample_batch(tensor, sample_size, lengths=None):
+def subsample_batch(tensor, sample_size, indices=None, lengths=None):
     batch_size = tensor.size(0)
     if lengths is None:
         lengths = batch_size * [tensor.size(1)]
 
-    tensor_list = []
-    for i in range(batch_size):
-        start = random.randint(0, lengths[i] - sample_size)
-        tensor_list.append(tensor[i, start:start + sample_size])
+    if indices is None:
+        indices = [random.randint(0, l - sample_size) for l in lengths]
 
-    return torch.stack(tensor_list)
+    tensor_list = []
+    for i, idx in enumerate(indices):
+        tensor_list.append(tensor[i, idx:idx + sample_size])
+
+    return torch.stack(tensor_list), indices
 
 
 def broadcast_elements(batch, repeat_no):

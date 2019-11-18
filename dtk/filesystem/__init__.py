@@ -3,7 +3,18 @@ from .filtering import Filter, PatternExtractor, Tagger
 import re
 
 
-def find_extensions(file_name):
+def find_extensions(file_name, allowed_exts=None):
+    if allowed_exts is not None:
+        if not isinstance(allowed_exts, list):
+            allowed_exts = [allowed_exts]
+
+        ext_list = []
+        for ext in allowed_exts:
+            if os.path.isfile(file_name + ext):
+                ext_list.append(ext)
+
+        return ext_list
+
     path = os.path.dirname(file_name)
     name = os.path.basename(file_name)
 
@@ -51,8 +62,13 @@ def list_matching_files(directories, ext=None):
             # Now search for matching files in the other directories
             all_matches_found = True
             for i in range(1, len(directories)):
+
                 # Find all the possible extensions of the file in the directory
-                possible_extensions = find_extensions(os.path.join(directories[i], sub_path, file_name))
+                if ext is None:
+                    possible_extensions = find_extensions(os.path.join(directories[i], sub_path, file_name))
+                else:
+                    possible_extensions = find_extensions(os.path.join(directories[i], sub_path, file_name), ext[i])
+
                 if not possible_extensions:  # If you can't find any files
                     all_matches_found = False  # Report that not all matches were found and break
                     break
