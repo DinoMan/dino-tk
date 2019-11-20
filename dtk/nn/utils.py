@@ -174,7 +174,7 @@ def subsample_batch(tensor, sample_size, indices=None, lengths=None):
     for i, idx in enumerate(indices):
         tensor_list.append(tensor[i, idx:idx + sample_size])
 
-    return torch.stack(tensor_list), indices
+    return torch.stack(tensor_list).squeeze(), indices
 
 
 def broadcast_elements(batch, repeat_no):
