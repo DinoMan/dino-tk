@@ -5,6 +5,11 @@ import torch.nn as nn
 import random
 
 
+def freeze(model):
+    for p in model.parameters():
+        p.requires_grad = False
+
+
 def pad_both_ends(tensor, left, right, dim=0):
     no_dims = len(tensor.size())
     if dim == -1:

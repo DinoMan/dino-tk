@@ -1,8 +1,33 @@
 import torch
 import torch.nn as nn
 from .utils import same_padding
-import math
 from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
+
+
+class MLP(nn.Module):
+    def __init__(self, input_size, output_size, hidden=[128], batch_norm=True):
+        super(MLP, self).__init__()
+
+        self.layers = nn.ModuleList()
+        layer_input = [input_size]
+        layer_input.extend(hidden)
+
+        for i in range(0, len(layer_input) - 1):
+            if batch_norm:
+                self.layers.append(nn.Sequential(nn.Linear(layer_input[i], layer_input[i + 1]),
+                                                 nn.BatchNorm1d(layer_input[i + 1]),
+                                                 nn.ReLU(True)))
+            else:
+                self.layers.append(nn.Sequential(nn.Linear(layer_input[i], layer_input[i + 1]),
+                                                 nn.ReLU(True)))
+
+        self.layers.append(nn.Linear(layer_input[-1], output_size))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+
+        return x
 
 
 class MedianPool1d(nn.Module):
