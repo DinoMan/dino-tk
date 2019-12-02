@@ -1,8 +1,29 @@
 from functools import reduce
 import operator
 
+
+def args2dict(args):
+    return vars(args)
+
+
+def dict2args(dictionary):
+    arg_list = []
+    for k in dictionary.keys():
+        if type(dictionary[k]) == type(True):
+            if dictionary[k] == True:
+                arg_list += ["--" + k]
+            else:
+                continue
+        elif dictionary[k] is None:
+            continue
+
+        arg_list += ["--" + k, str(dictionary[k])]
+    return arg_list
+
+
 def is_power2(num):
     return num != 0 and ((num & (num - 1)) == 0)
+
 
 def prime_factors(number):
     factor = 2

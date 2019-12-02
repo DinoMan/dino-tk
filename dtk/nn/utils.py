@@ -3,6 +3,34 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 import random
+import os
+import collections
+
+
+class Checkpoint():
+    def __init__(self, path, model_name, save_every=3, circular=-1, epoch=1):
+        self.path = path
+        if not os.path.exists(path) and path != "":
+            os.makedirs(path)
+        self.model_name = model_name.replace(" ", "_").replace(":", "-").replace("-_", "-")
+        self.save_every = save_every
+        self.circular = circular
+        if self.circular > 0:
+            self.checkpoints = collections.deque(maxlen=3)
+        self.epoch = epoch
+
+    def __call__(self, state):
+        filename = os.path.join(self.path, self.model_name + "_" + str(self.epoch) + ".dat")
+        self.epoch += 1
+        if self.epoch % self.save_every == 0:
+            return
+
+        if self.circular > 0:
+            if len(self.checkpoints) >= self.circular:
+                os.remove(self.checkpoints[0])
+
+            self.checkpoints.append(filename)
+        torch.save(state, filename)
 
 
 def freeze(model):
