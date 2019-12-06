@@ -38,6 +38,11 @@ def freeze(model):
         p.requires_grad = False
 
 
+def unfreeze(model):
+    for p in model.parameters():
+        p.requires_grad = True
+
+
 def pad_both_ends(tensor, left, right, dim=0):
     no_dims = len(tensor.size())
     if dim == -1:
