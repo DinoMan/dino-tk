@@ -18,10 +18,15 @@ class Checkpoint():
         if self.circular > 0:
             self.checkpoints = collections.deque(maxlen=3)
         self.epoch = epoch
+        self.Init = True
 
     def __call__(self, state):
         filename = os.path.join(self.path, self.model_name + "_" + str(self.epoch) + ".dat")
         self.epoch += 1
+        if self.Init:
+            self.Init = False
+            return
+
         if self.epoch % self.save_every == 0:
             return
 
