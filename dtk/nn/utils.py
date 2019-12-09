@@ -21,14 +21,17 @@ class Checkpoint():
         self.Init = True
 
     def __call__(self, state):
-        filename = os.path.join(self.path, self.model_name + "_" + str(self.epoch) + ".dat")
-        self.epoch += 1
         if self.Init:
             self.Init = False
+            self.epoch += 1
             return
 
-        if self.epoch % self.save_every == 0:
+
+        if self.epoch % self.save_every:
+            self.epoch += 1
             return
+
+        filename = os.path.join(self.path, self.model_name + "_" + str(self.epoch) + ".dat")
 
         if self.circular > 0:
             if len(self.checkpoints) >= self.circular:
@@ -36,6 +39,7 @@ class Checkpoint():
 
             self.checkpoints.append(filename)
         torch.save(state, filename)
+        self.epoch += 1
 
 
 def freeze(model):
