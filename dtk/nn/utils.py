@@ -26,7 +26,6 @@ class Checkpoint():
             self.epoch += 1
             return
 
-
         if self.epoch % self.save_every:
             self.epoch += 1
             return
@@ -40,6 +39,13 @@ class Checkpoint():
             self.checkpoints.append(filename)
         torch.save(state, filename)
         self.epoch += 1
+
+
+def standardize_state_dict(state_dict):
+    for k, v in state_dict.items():
+        if "module" in k:
+            new_k = k[7:]
+            state_dict[new_k] = state_dict.pop(k)
 
 
 def freeze(model):

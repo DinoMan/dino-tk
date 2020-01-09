@@ -4,6 +4,20 @@ from .utils import same_padding
 from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 
 
+class VideoDownsizer():
+    def __init__(self, new_size):
+        super(VideoDownsizer, self).__init__()
+        self.new_size = new_size
+        self.resizer = nn.AdaptiveAvgPool2d(new_size)
+
+    def forward(self, x):
+        old_size = x.size()
+        new_size = list(x.size())
+        new_size[-2], new_size[-1] = self.new_size[0], self.new_size[1]
+
+        return self.resizer(x.view(-1, old_size[-2], old_size[-2])).view(new_size)
+
+
 class MLP(nn.Module):
     def __init__(self, input_size, output_size, hidden=[128], batch_norm=True):
         super(MLP, self).__init__()
