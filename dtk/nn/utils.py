@@ -42,7 +42,7 @@ class Checkpoint():
 
 
 def standardize_state_dict(state_dict):
-    for k, v in state_dict.items():
+    for k, v in state_dict.copy().items():
         if "module" in k:
             new_k = k[7:]
             state_dict[new_k] = state_dict.pop(k)
@@ -97,12 +97,10 @@ def cut_n_stack(seq, snip_length, cut_dim=0, cutting_stride=None, pad_samples=0)
 
 def create_windowed_sequence(seqs, snip_length, cut_dim=0, cutting_stride=None, pad_samples=0):
     windowed_seqs = []
-    lengths = []
     for seq in seqs:
         windowed_seqs.append(cut_n_stack(seq, snip_length, cut_dim, cutting_stride, pad_samples).unsqueeze(0))
-        lengths.append(windowed_seqs[-1].size(1))
 
-    return torch.cat(windowed_seqs), lengths
+    return torch.cat(windowed_seqs)
 
 
 def pad_n_stack_sequences(seq_list, order=None, max_length=None):
