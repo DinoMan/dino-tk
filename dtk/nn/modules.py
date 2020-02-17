@@ -58,13 +58,18 @@ class MedianPool1d(nn.Module):
 
 
 class UnetBlock2D(nn.Module):
-    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True):
+    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False):
         super(UnetBlock2D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
-        self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=False)
-        self.dcl2 = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride,
-                                       padding=padding // 2, bias=False)
+        if spectral_norm:
+            self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
+            self.dcl2 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
+                                                                  stride=stride, padding=padding // 2, bias=bias))
+        else:
+            self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
+            self.dcl2 = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
+
         if batch_norm:
             self.activation1 = nn.Sequential(nn.BatchNorm2d(in_channels), nn.ReLU(True))
             self.activation2 = nn.Sequential(nn.BatchNorm2d(out_channels), nn.ReLU(True))
@@ -89,13 +94,18 @@ class UnetBlock2D(nn.Module):
 
 
 class UnetBlock1D(nn.Module):
-    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True):
+    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False):
         super(UnetBlock1D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
-        self.dcl1 = nn.ConvTranspose1d(in_channels + skip_channels, in_channels, 3, padding=1, bias=False)
-        self.dcl2 = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride,
-                                       padding=padding // 2, bias=False)
+        if spectral_norm:
+            self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
+            self.dcl2 = nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride,
+                                                                  padding=padding // 2, bias=bias))
+        else:
+            self.dcl1 = nn.ConvTranspose1d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
+            self.dcl2 = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride,
+                                           padding=padding // 2, bias=bias)
         if batch_norm:
             self.activation1 = nn.Sequential(nn.BatchNorm1d(in_channels), nn.ReLU(True))
             self.activation2 = nn.Sequential(nn.BatchNorm1d(out_channels), nn.ReLU(True))
@@ -121,13 +131,18 @@ class UnetBlock1D(nn.Module):
 class Self_Attn(nn.Module):
     """ Self attention Layer"""
 
-    def __init__(self, in_dim):
+    def __init__(self, in_dim, spectral_norm=False):
         super(Self_Attn, self).__init__()
         self.chanel_in = in_dim
 
-        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
-        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+        if spectral_norm:
+            self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+            self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+            self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+        else:
+            self.query_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1))
+            self.key_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1))
+            self.value_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1))
         self.gamma = nn.Parameter(torch.zeros(1))
 
         self.softmax = nn.Softmax(dim=-1)  #
@@ -152,6 +167,7 @@ class Self_Attn(nn.Module):
 
         out = self.gamma * out + x
         return out, attention
+
 
 class ResNetBlock(nn.Module):
     expansion = 1
@@ -185,13 +201,78 @@ class ResNetBlock(nn.Module):
         return out
 
 
+class ResNet2D(nn.Module):
+    def __init__(self, latent, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], zero_init_residual=False):
+        super(ResNet2D, self).__init__()
+        self.inplanes = 3
+        self.channels = channels
+        self.feature_maps = feature_maps
+        self.latent = latent
+        self.resnet_blocks = nn.ModuleList()
+
+        for i, l in enumerate(layers):
+            self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2))
+        self.resnet_blocks.append(self._make_layer(block, self.latent, 1))
+        self.resnet_blocks.append(nn.AdaptiveAvgPool2d((1, 1)))
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+        # Zero-initialize the last BN in each residual branch,
+        # so that the residual branch starts with zeros, and each residual block behaves like an identity.
+        # This improves the model by 0.2~0.3% according to https://arxiv.org/abs/1706.02677
+        if zero_init_residual:
+            for m in self.modules():
+                if isinstance(m, Bottleneck):
+                    nn.init.constant_(m.bn3.weight, 0)
+                elif isinstance(m, BasicBlock):
+                    nn.init.constant_(m.bn2.weight, 0)
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                conv1x1(self.inplanes, planes * block.expansion, stride),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x, retain_intermediate=[]):
+        if retain_intermediate:
+            h = {}
+            for layer_no, blk in enumerate(self.resnet_blocks):
+                x = blk(x)
+                layer_size = max(x.size(1), x.size(2))
+                if layer_size in retain_intermediate:
+                    h[layer_size] = x
+
+            return x.view(-1, self.latent), h
+        else:
+            for blk in self.resnet_blocks:
+                x = blk(x)
+
+            return x.view(-1, self.latent)
+
+
 class ResNet3D(nn.Module):
-    def __init__(self, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512],
-                 zero_init_residual=False):
+    def __init__(self, latent, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], zero_init_residual=False):
         super(ResNet3D, self).__init__()
         self.inplanes = feature_maps[0]
         self.channels = channels
         self.feature_maps = feature_maps
+        self.latent = latent
+
         self.resnet_blocks = nn.ModuleList()
         self.front_end = nn.Sequential(
             nn.Conv3d(channels, self.feature_maps[0], kernel_size=(5, 7, 7), stride=(1, 2, 2), padding=(2, 3, 3),
@@ -200,10 +281,10 @@ class ResNet3D(nn.Module):
             nn.ReLU(inplace=True),
             nn.MaxPool3d(kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1))
         )
-        self.resnet_blocks.append(self._make_layer(block, self.feature_maps[0], layers[0]))
-        self.resnet_blocks.append(self._make_layer(block, self.feature_maps[1], layers[1], stride=2))
-        self.resnet_blocks.append(self._make_layer(block, self.feature_maps[2], layers[2], stride=2))
-        self.resnet_blocks.append(self._make_layer(block, self.feature_maps[3], layers[3], stride=2))
+
+        for i, l in enumerate(layers):
+            self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2))
+        self.resnet_blocks.append(self._make_layer(block, self.latent, 1))
         self.resnet_blocks.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         for m in self.modules():
@@ -247,55 +328,63 @@ class ResNet3D(nn.Module):
         for blk in self.resnet_blocks:
             x = blk(x)
 
-        return x.view(x.size(0), -1)
+        return x.view(-1, self.latent)
 
 
 class Deconv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True):
+    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
         super(Deconv2D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
-        self.dcl = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2,
-                                      bias=False)
+        if spectral_norm:
+            self.dcl = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
+                                                                 stride=stride, padding=padding // 2, bias=bias))
+        else:
+            self.dcl = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
 
         if batch_norm:
-            self.activation = nn.Sequential(nn.BatchNorm2d(out_channels), nn.ReLU(True))
+            self.bn = nn.BatchNorm2d(out_channels)
         else:
-            self.activation = nn.ReLU(True)
+            self.bn = None
+
+        self.activation = activation
 
         self.required_channels = out_channels
         self.out_size_required = tuple(x * stride for x in in_size)
 
     def forward(self, x, out_size=None):
         if out_size is None:
-            x = self.dcl(x,
-                         output_size=[-1, self.required_channels, self.out_size_required[0], self.out_size_required[1]])
+            x = self.dcl(x, output_size=[-1, self.required_channels, self.out_size_required[0], self.out_size_required[1]])
         else:
             x = self.dcl(x, output_size=out_size)
 
-        return self.activation(x)
+        if self.bn is not None:
+            x = self.bn(x)
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
 
 
 class Deconv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, use_relu=True):
+    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
         super(Deconv1D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
-        self.dcl = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride,
-                                      padding=(padding - padding // 2))
+        if spectral_norm:
+            self.dcl = nn.utils.spectral_norm(nn.ConvTranspose1d(in_channels, out_channels, kernel_size,
+                                                                 stride=stride, padding=(padding - padding // 2), bias=bias))
+        else:
+            self.dcl = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias)
 
         if batch_norm:
-            if use_relu:
-                self.activation = nn.Sequential(nn.BatchNorm1d(out_channels), nn.ReLU(True))
-            else:
-                self.activation = nn.Sequential(nn.BatchNorm1d(out_channels), nn.Tanh())
+            self.bn = nn.BatchNorm1d(out_channels)
         else:
-            if use_relu:
-                self.activation = nn.ReLU(True)
-            else:
-                self.activation = nn.Tanh()
+            self.bn = None
 
-        self.required_channels = out_channels
+        self.activation = activation
+
         self.out_size_required = in_size * stride
 
     def forward(self, x, out_size=None):
@@ -304,4 +393,69 @@ class Deconv1D(nn.Module):
         else:
             x = self.dcl(x, output_size=out_size)
 
-        return self.activation(x)
+        if self.bn is not None:
+            x = self.bn(x)
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
+
+
+class Conv2D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
+        super(Conv2D, self).__init__()
+        # This ensures that we have same padding no matter if we have even or odd kernels
+        padding = same_padding(kernel_size, stride)
+        if spectral_norm:
+            self.cl = nn.utils.spectral_norm(nn.Conv2d(in_channels, out_channels, kernel_size,
+                                                       stride=stride, padding=(padding - padding // 2), bias=bias))
+        else:
+            self.cl = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias)
+
+        if batch_norm:
+            self.bn = nn.BatchNorm2d(out_channels)
+        else:
+            self.bn = None
+
+        self.activation = activation
+
+    def forward(self, x):
+        x = self.cl(x)
+        if self.bn is not None:
+            x = self.bn(x)
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
+
+
+class Conv1D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
+        super(Conv1D, self).__init__()
+        # This ensures that we have same padding no matter if we have even or odd kernels
+        padding = same_padding(kernel_size, stride)
+        if spectral_norm:
+            self.cl = nn.utils.spectral_norm(
+                nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias))
+        else:
+            self.cl = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias)
+
+        if batch_norm:
+            self.bn = nn.BatchNorm1d(out_channels)
+        else:
+            self.bn = None
+
+        self.activation = activation
+
+    def forward(self, x):
+        x = self.cl(x)
+
+        if self.bn is not None:
+            x = self.bn(x)
+
+        if self.activation is not None:
+            x = self.activation(x)
+
+        return x
