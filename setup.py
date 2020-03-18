@@ -3,7 +3,7 @@ from setuptools import setup
 setup(name='dtk',
       version='0.1',
       description='Dino\'s library for machine learning and other things',
-      packages=['dtk', 'dtk.filesystem', 'dtk.metrics', 'dtk.nn', 'dtk.transforms'],
+      packages=['dtk', 'dtk.filesystem', 'dtk.metrics', 'dtk.nn', 'dtk.transforms', 'dtk.speech'],
       package_dir={'dtk': 'dtk'},
       install_requires=[
           'torch',

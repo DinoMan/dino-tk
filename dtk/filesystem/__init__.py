@@ -1,6 +1,27 @@
 import os
 from .filtering import Filter, PatternExtractor, Tagger
 import re
+from torch.utils.data import Dataset
+from torchvision import transforms
+from PIL import Image
+import random
+
+
+class ImageDataset(Dataset):
+    def __init__(self, folders, resize=(256, 256), random_flip=0, ext=None):
+        self.folders = folders
+        self.files = list_files(folders, file_filter=Filter(ext=ext))
+        self.image_transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=random_flip),
+            transforms.Resize(resize),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    def __getitem__(self, sample_idx):
+        return self.image_transform(Image.open(self.files[sample_idx]).convert("RGB"))
+
+    def __len__(self):
+        return len(self.files)
 
 
 def find_extensions(file_name, allowed_exts=None):
@@ -19,7 +40,7 @@ def find_extensions(file_name, allowed_exts=None):
     name = os.path.basename(file_name)
 
     files = os.listdir(path)
-    rx = r'({0}\.\w\w\w)'.format(name)
+    rx = r'({0}\.\w+)'.format(name)
 
     matched_files = re.findall(rx, " ".join(files))
     return [os.path.splitext(m)[1] for m in matched_files]

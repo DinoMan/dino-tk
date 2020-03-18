@@ -23,9 +23,8 @@ class Filesystem(unittest.TestCase):
                 allowed_exts[-1].append(os.path.splitext(files[-1][1])[1])
 
         # Now add a file that doesn't match
-        files.append(tempfile.mkdtemp(suffix=".wtf", dir=d[0]))
+        files.append(tempfile.mkstemp(suffix=".wtf", dir=d[0]))
         matched_files = fs.list_matching_files(d)
-
         self.assertEqual(len(matched_files["files"]), 3, "3 files should be matched")
         self.assertEqual(set(matched_files["files"]), set(file_names), "the names should also match")
 

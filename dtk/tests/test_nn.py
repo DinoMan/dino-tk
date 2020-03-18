@@ -73,14 +73,14 @@ class Sampling(unittest.TestCase):
 
             length += 1
 
-        t_samples = dnn.subsample_batch(t, 5)
-        self.assertEqual(t_samples.size(), (3, 5, 1), "dimension should be (3, 5, 1)")
+        t_samples, indices = dnn.subsample_batch(t, 5)
+        self.assertEqual(t_samples.size(), (3, 5), "dimension should be (3, 5, 1)")
 
-        t_samples = dnn.subsample_batch(t, 4)
-        self.assertEqual(t_samples.size(), (3, 4, 1), "dimension should be (3, 4, 1)")
+        t_samples, indices = dnn.subsample_batch(t, 4)
+        self.assertEqual(t_samples.size(), (3, 4), "dimension should be (3, 4, 1)")
 
-        t_samples = dnn.subsample_batch(t, 8, lengths=l)
-        self.assertEqual(t_samples.size(), (3, 8, 1), "dimension should be (3, 8, 1)")
+        t_samples, indices = dnn.subsample_batch(t, 8, lengths=l)
+        self.assertEqual(t_samples.size(), (3, 8), "dimension should be (3, 8, 1)")
         self.assertEqual(t_samples[0, 7], 8, "No elements should correspond to padding")
         self.assertGreaterEqual(t_samples[1, 7], 8, "No elements should correspond to padding")
         self.assertGreaterEqual(t_samples[2, 7], 8, "No elements should correspond to padding")
