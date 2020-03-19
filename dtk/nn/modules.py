@@ -58,8 +58,12 @@ class MedianPool1d(nn.Module):
 
 
 class UnetBlock2D(nn.Module):
-    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False):
+    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False,
+                 activation=None, activation_params=[]):
         super(UnetBlock2D, self).__init__()
+        if activation is None:
+            activation = nn.ReLU
+
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
         if spectral_norm:
@@ -71,11 +75,11 @@ class UnetBlock2D(nn.Module):
             self.dcl2 = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
 
         if batch_norm:
-            self.activation1 = nn.Sequential(nn.BatchNorm2d(in_channels), nn.ReLU(True))
-            self.activation2 = nn.Sequential(nn.BatchNorm2d(out_channels), nn.ReLU(True))
+            self.activation1 = nn.Sequential(nn.BatchNorm2d(in_channels), activation(*activation_params))
+            self.activation2 = nn.Sequential(nn.BatchNorm2d(out_channels), activation(*activation_params))
         else:
-            self.activation1 = nn.ReLU(True)
-            self.activation2 = nn.ReLU(True)
+            self.activation1 = activation(*activation_params)
+            self.activation2 = activation(*activation_params)
 
         self.required_channels = out_channels
         self.out_size_required = tuple(x * stride for x in in_size)
@@ -107,11 +111,11 @@ class UnetBlock1D(nn.Module):
             self.dcl2 = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride,
                                            padding=padding // 2, bias=bias)
         if batch_norm:
-            self.activation1 = nn.Sequential(nn.BatchNorm1d(in_channels), nn.ReLU(True))
-            self.activation2 = nn.Sequential(nn.BatchNorm1d(out_channels), nn.ReLU(True))
+            self.activation1 = nn.Sequential(nn.BatchNorm1d(in_channels), activation(*activation_params))
+            self.activation2 = nn.Sequential(nn.BatchNorm1d(out_channels), activation(*activation_params))
         else:
-            self.activation1 = nn.ReLU(True)
-            self.activation2 = nn.ReLU(True)
+            self.activation1 = activation()
+            self.activation2 = activation()
 
         self.required_channels = out_channels
         self.out_size_required = in_size * stride
@@ -332,7 +336,8 @@ class ResNet3D(nn.Module):
 
 
 class Deconv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
+    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+                 activation_params=[]):
         super(Deconv2D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
@@ -347,7 +352,7 @@ class Deconv2D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation
+        self.activation = activation(*activation_params)
 
         self.required_channels = out_channels
         self.out_size_required = tuple(x * stride for x in in_size)
@@ -368,7 +373,8 @@ class Deconv2D(nn.Module):
 
 
 class Deconv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
+    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+                 activation_params=[]):
         super(Deconv1D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
@@ -383,7 +389,7 @@ class Deconv1D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation
+        self.activation = activation(*activation_params)
 
         self.out_size_required = in_size * stride
 
@@ -403,7 +409,8 @@ class Deconv1D(nn.Module):
 
 
 class Conv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+                 activation_params=[]):
         super(Conv2D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
@@ -418,7 +425,7 @@ class Conv2D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation
+        self.activation = activation(*activation_params)
 
     def forward(self, x):
         x = self.cl(x)
@@ -432,7 +439,8 @@ class Conv2D(nn.Module):
 
 
 class Conv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+                 activation_params=[]):
         super(Conv1D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
@@ -447,7 +455,7 @@ class Conv1D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation
+        self.activation = activation(*activation_params)
 
     def forward(self, x):
         x = self.cl(x)
