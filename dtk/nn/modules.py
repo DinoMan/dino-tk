@@ -4,7 +4,31 @@ from .utils import same_padding
 from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 
 
-class VideoDownsizer():
+class ResizeConv2D(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, scale_factor=2, bias=True, mode='nearest', spectral_norm=False):
+        super(ResizeConv2D, self).__init__()
+        self.up = nn.Upsample(scale_factor=scale_factor, mode=mode)
+        if kernel_size % 2 == 1:
+            padding = kernel_size // 2
+        else:
+            padding = (kernel_size // 2, (kernel_size // 2) - 1, kernel_size // 2, (kernel_size // 2) - 1)
+        self.pad = nn.ReflectionPad2d(padding)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=1, bias=bias)
+        if spectral_norm:
+            self.conv = nn.utils.spectral_norm(self.conv)
+
+    def forward(self, x, output_size=None):
+        x = self.up(x)
+        x = self.pad(x)
+        x = self.conv(x)
+
+        if output_size is not None:
+            return x.view(output_size)
+
+        return x
+
+
+class VideoDownsizer(nn.Module):
     def __init__(self, new_size):
         super(VideoDownsizer, self).__init__()
         self.new_size = new_size
@@ -15,7 +39,7 @@ class VideoDownsizer():
         new_size = list(x.size())
         new_size[-2], new_size[-1] = self.new_size[0], self.new_size[1]
 
-        return self.resizer(x.view(-1, old_size[-2], old_size[-2])).view(new_size)
+        return self.resizer(x.view(-1, old_size[-2], old_size[-1])).view(new_size)
 
 
 class MLP(nn.Module):
@@ -59,7 +83,7 @@ class MedianPool1d(nn.Module):
 
 class UnetBlock2D(nn.Module):
     def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False,
-                 activation=None, activation_params=[]):
+                 activation=None, activation_params=[], resize_convs=False):
         super(UnetBlock2D, self).__init__()
         if activation is None:
             activation = nn.ReLU
@@ -67,12 +91,20 @@ class UnetBlock2D(nn.Module):
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
         if spectral_norm:
-            self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
-            self.dcl2 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
-                                                                  stride=stride, padding=padding // 2, bias=bias))
+            if resize_convs:
+                self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
+                self.dcl2 = ResizeConv2D(in_channels, out_channels, kernel_size, scale_factor=stride, bias=bias, spectral_norm=True)
+            else:
+                self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
+                self.dcl2 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
+                                                                      stride=stride, padding=padding // 2, bias=bias))
         else:
-            self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
-            self.dcl2 = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
+            if resize_convs:
+                self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
+                self.dcl2 = ResizeConv2D(in_channels, out_channels, kernel_size, scale_factor=stride, bias=bias)
+            else:
+                self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
+                self.dcl2 = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
 
         if batch_norm:
             self.activation1 = nn.Sequential(nn.BatchNorm2d(in_channels), activation(*activation_params))

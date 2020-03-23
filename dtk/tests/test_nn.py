@@ -2,8 +2,20 @@ import unittest
 import torch
 import dtk.nn as dnn
 
-class Padding(unittest.TestCase):
 
+class Convolutions(unittest.TestCase):
+    def test_resize_conv(self):
+        input = torch.ones(1, 2, 16, 16)
+        rc = dnn.ResizeConv2D(2, 4, 3, 2)
+        output = rc(input)
+        self.assertEqual(output.size(), (1, 4, 32, 32), "Checking size after resize convolution")
+        rc = dnn.ResizeConv2D(2, 4, 4, 2)
+        output = rc(input)
+        self.assertEqual(output.size(), (1, 4, 32, 32), "Checking size after resize convolution")
+
+
+
+class Padding(unittest.TestCase):
     def test_double_sided_pad(self):
         t = torch.ones([8, 1])
         padded_t = dnn.pad_both_ends(t, 1, 1)
