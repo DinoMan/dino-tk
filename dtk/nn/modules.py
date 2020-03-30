@@ -5,7 +5,7 @@ from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 
 
 class ResizeConv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, scale_factor=2, bias=True, mode='nearest', spectral_norm=False):
+    def __init__(self, in_channels, out_channels, kernel_size, scale_factor=2, bias=True, mode='bilinear', spectral_norm=False):
         super(ResizeConv2D, self).__init__()
         self.up = nn.Upsample(scale_factor=scale_factor, mode=mode)
         if kernel_size % 2 == 1:
@@ -130,8 +130,12 @@ class UnetBlock2D(nn.Module):
 
 
 class UnetBlock1D(nn.Module):
-    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False):
+    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False,
+                 activation=None, activation_params=[]):
         super(UnetBlock1D, self).__init__()
+        if activation is None:
+            activation = nn.ReLU
+
         # This ensures that we have same padding no matter if we have even or odd kernels
         padding = same_padding(kernel_size, stride)
         if spectral_norm:
@@ -384,7 +388,10 @@ class Deconv2D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation(*activation_params)
+        if activation is None:
+            self.activation = None
+        else:
+            self.activation = activation(*activation_params)
 
         self.required_channels = out_channels
         self.out_size_required = tuple(x * stride for x in in_size)
@@ -421,7 +428,10 @@ class Deconv1D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation(*activation_params)
+        if activation is None:
+            self.activation = None
+        else:
+            self.activation = activation(*activation_params)
 
         self.out_size_required = in_size * stride
 
@@ -457,7 +467,10 @@ class Conv2D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation(*activation_params)
+        if activation is None:
+            self.activation = None
+        else:
+            self.activation = activation(*activation_params)
 
     def forward(self, x):
         x = self.cl(x)
@@ -487,7 +500,10 @@ class Conv1D(nn.Module):
         else:
             self.bn = None
 
-        self.activation = activation(*activation_params)
+        if activation is None:
+            self.activation = None
+        else:
+            self.activation = activation(*activation_params)
 
     def forward(self, x):
         x = self.cl(x)
