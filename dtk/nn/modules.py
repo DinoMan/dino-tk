@@ -5,7 +5,7 @@ from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 
 
 class ResizeConv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, scale_factor=2, bias=True, mode='bilinear', spectral_norm=False):
+    def __init__(self, in_channels, out_channels, kernel_size, scale_factor=2, bias=True, mode='nearest', spectral_norm=False):
         super(ResizeConv2D, self).__init__()
         self.up = nn.Upsample(scale_factor=scale_factor, mode=mode)
         if kernel_size % 2 == 1:
