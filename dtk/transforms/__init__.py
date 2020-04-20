@@ -2,7 +2,7 @@ import random
 
 
 class RandomCrop(object):
-    """Crops a given PIL.Image at a random location to have a region that is proportional
+    """Crops given PIL.Images at a random location to have a region that is proportional
     to the original size
     """
 
