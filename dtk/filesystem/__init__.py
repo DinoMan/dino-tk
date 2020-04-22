@@ -24,6 +24,13 @@ class ImageDataset(Dataset):
         return len(self.files)
 
 
+def filify(string):
+    filename = string.replace(" ", "_")
+    filename = filename.replace(":", "-")
+    filename = filename.replace("-_", "-")
+    return filename
+
+
 def find_extensions(file_name, allowed_exts=None):
     if allowed_exts is not None:
         if not isinstance(allowed_exts, list):
