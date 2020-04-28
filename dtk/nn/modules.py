@@ -1,7 +1,31 @@
 import torch
 import torch.nn as nn
+import torch
 from .utils import same_padding
 from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
+import torch.nn.functional as F
+from math import exp
+
+def gaussian(window_size, std_dev):
+    gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * std_dev ** 2)) for x in range(window_size)])
+    return gauss / gauss.sum()
+
+
+class GaussianBlur1D(nn.Module):
+    def __init__(self, window_size, channels, std_dev=1):
+        self.window = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()
+
+    def forward(self, x):
+        return F.conv1d(x, self.window, padding=window // 2, groups=channel)
+
+
+class GaussianBlur2D(nn.Module):
+    def __init__(self, window_size, channels, std_dev=1):
+        window_1d = gaussian(window_size, std_dev).unsqueeze(1)
+        self.window = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, window_size, window_size).contiguous()
+
+    def forward(self, x):
+        return F.conv2d(x, self.window, padding=window // 2, groups=channel)
 
 
 class ResizeConv2D(nn.Module):
@@ -43,7 +67,7 @@ class VideoDownsizer(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden=[128], batch_norm=True):
+    def __init__(self, input_size, output_size, hidden=[128], norm=None):
         super(MLP, self).__init__()
 
         self.layers = nn.ModuleList()
@@ -51,9 +75,9 @@ class MLP(nn.Module):
         layer_input.extend(hidden)
 
         for i in range(0, len(layer_input) - 1):
-            if batch_norm:
+            if norm is not None:
                 self.layers.append(nn.Sequential(nn.Linear(layer_input[i], layer_input[i + 1]),
-                                                 nn.BatchNorm1d(layer_input[i + 1]),
+                                                 norm(layer_input[i + 1]),
                                                  nn.ReLU(True)))
             else:
                 self.layers.append(nn.Sequential(nn.Linear(layer_input[i], layer_input[i + 1]),
@@ -82,7 +106,7 @@ class MedianPool1d(nn.Module):
 
 
 class UnetBlock2D(nn.Module):
-    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False,
+    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False,
                  activation=None, activation_params=[], resize_convs=False):
         super(UnetBlock2D, self).__init__()
         if activation is None:
@@ -106,9 +130,9 @@ class UnetBlock2D(nn.Module):
                 self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
                 self.dcl2 = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
 
-        if batch_norm:
-            self.activation1 = nn.Sequential(nn.BatchNorm2d(in_channels), activation(*activation_params))
-            self.activation2 = nn.Sequential(nn.BatchNorm2d(out_channels), activation(*activation_params))
+        if norm is not None:
+            self.activation1 = nn.Sequential(norm(in_channels), activation(*activation_params))
+            self.activation2 = nn.Sequential(norm(out_channels), activation(*activation_params))
         else:
             self.activation1 = activation(*activation_params)
             self.activation2 = activation(*activation_params)
@@ -130,7 +154,7 @@ class UnetBlock2D(nn.Module):
 
 
 class UnetBlock1D(nn.Module):
-    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False,
+    def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False,
                  activation=None, activation_params=[]):
         super(UnetBlock1D, self).__init__()
         if activation is None:
@@ -146,9 +170,9 @@ class UnetBlock1D(nn.Module):
             self.dcl1 = nn.ConvTranspose1d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
             self.dcl2 = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride,
                                            padding=padding // 2, bias=bias)
-        if batch_norm:
-            self.activation1 = nn.Sequential(nn.BatchNorm1d(in_channels), activation(*activation_params))
-            self.activation2 = nn.Sequential(nn.BatchNorm1d(out_channels), activation(*activation_params))
+        if norm is not None:
+            self.activation1 = nn.Sequential(norm(in_channels), activation(*activation_params))
+            self.activation2 = nn.Sequential(norm(out_channels), activation(*activation_params))
         else:
             self.activation1 = activation()
             self.activation2 = activation()
@@ -372,7 +396,7 @@ class ResNet3D(nn.Module):
 
 
 class Deconv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False, activation=None,
                  activation_params=[]):
         super(Deconv2D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
@@ -383,8 +407,8 @@ class Deconv2D(nn.Module):
         else:
             self.dcl = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding // 2, bias=bias)
 
-        if batch_norm:
-            self.bn = nn.BatchNorm2d(out_channels)
+        if norm is not None:
+            self.bn = norm(out_channels)
         else:
             self.bn = None
 
@@ -412,7 +436,7 @@ class Deconv2D(nn.Module):
 
 
 class Deconv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+    def __init__(self, in_channels, out_channels, in_size, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False, activation=None,
                  activation_params=[]):
         super(Deconv1D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
@@ -423,8 +447,8 @@ class Deconv1D(nn.Module):
         else:
             self.dcl = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias)
 
-        if batch_norm:
-            self.bn = nn.BatchNorm1d(out_channels)
+        if norm is not None:
+            self.bn = norm(out_channels)
         else:
             self.bn = None
 
@@ -451,7 +475,7 @@ class Deconv1D(nn.Module):
 
 
 class Conv2D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False, activation=None,
                  activation_params=[]):
         super(Conv2D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
@@ -462,8 +486,8 @@ class Conv2D(nn.Module):
         else:
             self.cl = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias)
 
-        if batch_norm:
-            self.bn = nn.BatchNorm2d(out_channels)
+        if norm is not None:
+            self.bn = norm(out_channels)
         else:
             self.bn = None
 
@@ -484,7 +508,7 @@ class Conv2D(nn.Module):
 
 
 class Conv1D(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, batch_norm=True, spectral_norm=False, bias=False, activation=None,
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False, activation=None,
                  activation_params=[]):
         super(Conv1D, self).__init__()
         # This ensures that we have same padding no matter if we have even or odd kernels
@@ -495,8 +519,8 @@ class Conv1D(nn.Module):
         else:
             self.cl = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=(padding - padding // 2), bias=bias)
 
-        if batch_norm:
-            self.bn = nn.BatchNorm1d(out_channels)
+        if norm is not None:
+            self.bn = norm(out_channels)
         else:
             self.bn = None
 
