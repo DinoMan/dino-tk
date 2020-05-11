@@ -116,7 +116,7 @@ class UnetBlock2D(nn.Module):
         padding = same_padding(kernel_size, stride)
         if spectral_norm:
             if resize_convs:
-                self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
+                self.dcl1 = nn.utils.spectral_norm(nn.Conv2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
                 self.dcl2 = ResizeConv2D(in_channels, out_channels, kernel_size, scale_factor=stride, bias=bias, spectral_norm=True)
             else:
                 self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
@@ -124,7 +124,7 @@ class UnetBlock2D(nn.Module):
                                                                       stride=stride, padding=padding // 2, bias=bias))
         else:
             if resize_convs:
-                self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
+                self.dcl1 = nn.Conv2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)
                 self.dcl2 = ResizeConv2D(in_channels, out_channels, kernel_size, scale_factor=stride, bias=bias)
             else:
                 self.dcl1 = nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias)

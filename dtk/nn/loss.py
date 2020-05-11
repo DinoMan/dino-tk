@@ -8,7 +8,7 @@ class GradientPenalty(nn.Module):
         super(GradientPenalty, self).__init__()
         self.l = l
 
-    def forward(self, real, fake, func):
+    def forward(self, real, fake, func, cond=None):
         # The alpha parameter helps interpolate between real and generated data
         alpha = torch.rand([real.size()[0]], device=real.device, requires_grad=True)
         for i in range(real.dim() - 1):
@@ -16,7 +16,10 @@ class GradientPenalty(nn.Module):
 
         alpha = alpha.expand(real.size())
         interpolates = alpha * real + ((1 - alpha) * fake)
-        func_interpolates = func(interpolates)
+        if cond is None:
+            func_interpolates = func(interpolates)
+        else: # If we have a condition then feed it to the critic
+            func_interpolates = func(interpolates, cond)
 
         # get the gradient of the function at the interpolates
         gradients = autograd.grad(outputs=func_interpolates, inputs=interpolates,
