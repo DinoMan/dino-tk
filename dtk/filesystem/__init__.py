@@ -8,9 +8,8 @@ import random
 
 
 class ImageDataset(Dataset):
-    def __init__(self, folders, resize=(256, 256), random_flip=0, ext=None):
-        self.folders = folders
-        self.files = list_files(folders, file_filter=Filter(ext=ext))
+    def __init__(self, folder, resize=(256, 256), random_flip=0, ext=None):
+        self.files = list_files(folder, file_filter=Filter(ext=ext))
         self.image_transform = transforms.Compose([
             transforms.RandomHorizontalFlip(p=random_flip),
             transforms.Resize(resize),
