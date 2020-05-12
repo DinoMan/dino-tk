@@ -16,7 +16,7 @@ class Checkpoint():
         self.save_every = save_every
         self.circular = circular
         if self.circular > 0:
-            self.checkpoints = collections.deque(maxlen=3)
+            self.checkpoints = collections.deque()
         self.epoch = epoch
         self.Init = True
 
@@ -34,8 +34,7 @@ class Checkpoint():
 
         if self.circular > 0:
             if len(self.checkpoints) >= self.circular:
-                os.remove(self.checkpoints[0])
-
+                os.remove(self.checkpoints.popleft())
             self.checkpoints.append(filename)
         torch.save(state, filename)
         self.epoch += 1
