@@ -3,6 +3,17 @@ import torch.nn as nn
 import torch.autograd as autograd
 
 
+class Pullaway(nn.Module):
+    def __init__(self):
+        super(Pullaway, self).__init__()
+
+    def forward(self, z):
+        n = z.size(0)
+        z_norm = F.normalize(z, p=2, dim=1)
+        similarity = torch.matmul(z_norm, z_norm.transpose(1, 0)) ** 2
+        return (torch.sum(similarity) - n) / (n * (n - 1))  # The diagonals will add up to n so we subtract them
+
+
 class GradientPenalty(nn.Module):
     def __init__(self, l=10):
         super(GradientPenalty, self).__init__()
@@ -18,7 +29,7 @@ class GradientPenalty(nn.Module):
         interpolates = alpha * real + ((1 - alpha) * fake)
         if cond is None:
             func_interpolates = func(interpolates)
-        else: # If we have a condition then feed it to the critic
+        else:  # If we have a condition then feed it to the critic
             func_interpolates = func(interpolates, cond)
 
         # get the gradient of the function at the interpolates
