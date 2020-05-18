@@ -6,9 +6,20 @@ from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 import torch.nn.functional as F
 from math import exp
 
+
 def gaussian(window_size, std_dev):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * std_dev ** 2)) for x in range(window_size)])
     return gauss / gauss.sum()
+
+
+class NoiseInjection2D(nn.Module):
+    def __init__(self, channel):
+        super().__init__()
+
+        self.weight = nn.Parameter(torch.zeros(1, channel, 1, 1))
+
+    def forward(self, x, n):
+        return x + self.weight * n
 
 
 class GaussianBlur1D(nn.Module):
@@ -107,8 +118,16 @@ class MedianPool1d(nn.Module):
 
 class UnetBlock2D(nn.Module):
     def __init__(self, in_channels, out_channels, skip_channels, in_size, kernel_size, stride=1, norm=None, spectral_norm=False, bias=False,
-                 activation=None, activation_params=[], resize_convs=False):
+                 activation=None, activation_params=[], resize_convs=False, dropout=0):
         super(UnetBlock2D, self).__init__()
+
+        self.dropout1 = None
+        self.dropout2 = None
+
+        if dropout > 0:
+            self.dropout1 = nn.Dropout(p=dropout)
+            self.dropout2 = nn.Dropout(p=dropout)
+
         if activation is None:
             activation = nn.ReLU
 
@@ -147,9 +166,13 @@ class UnetBlock2D(nn.Module):
 
         x = self.dcl1(x)
         x = self.activation1(x)
+        if self.dropout1 is not None:
+            x = self.dropout1(x)
 
         x = self.dcl2(x, output_size=[-1, self.required_channels, self.out_size_required[0], self.out_size_required[1]])
         x = self.activation2(x)
+        if self.dropout2 is not None:
+            x = self.dropout2(x)
         return x
 
 
