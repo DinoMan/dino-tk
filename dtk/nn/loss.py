@@ -4,6 +4,25 @@ import torch.autograd as autograd
 import torch.nn.functional as F
 
 
+class DiversityRegularization(nn.Module):
+    def __init__(self, l=10, eps=1.0e-5, max=0.1):
+        super(DiversityRegularization, self).__init__()
+        self.l = l
+        self.eps = eps
+        self.max = max
+
+    def forward(self, s1, s2, z1, z2):
+        batch_size = s1.size(0)
+        sig1 = s1.view(batch_size, -1)
+        sig2 = s2.view(batch_size, -1)
+
+        signal_l1 = F.l1_loss(sig1, sig2.detach(), reduction='none').sum(dim=1) / sig1.size(1)
+        z_l1 = F.l1_loss(z1.detach(), z2.detach(), reduction='none').sum(dim=1) / z1.size(1)
+
+        norm_err = (signal_l1 / (z_l1 + self.eps)).mean()
+        return -self.l * torch.clamp(norm_err, max=self.max)
+
+
 class Pullaway(nn.Module):
     def __init__(self):
         super(Pullaway, self).__init__()
