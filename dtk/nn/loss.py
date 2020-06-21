@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class DiversityRegularization(nn.Module):
-    def __init__(self, l=10, eps=1.0e-5, max=0.1):
+    def __init__(self, l=10, eps=1.0e-5, max=10):
         super(DiversityRegularization, self).__init__()
         self.l = l
         self.eps = eps
