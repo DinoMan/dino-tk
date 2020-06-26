@@ -218,8 +218,6 @@ class UnetBlock1D(nn.Module):
 class SelfAttn2D(nn.Module):
     def __init__(self, in_dim, spectral_norm=False, k=8):
         super(SelfAttn2D, self).__init__()
-        self.chanel_in = in_dim
-
         if spectral_norm:
             self.query_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels=in_dim, out_channels=in_dim // k, kernel_size=1))
             self.key_conv = nn.utils.spectral_norm(nn.Conv2d(in_channels=in_dim, out_channels=in_dim // k, kernel_size=1))
@@ -255,8 +253,6 @@ class SelfAttn2D(nn.Module):
 class SelfAttn1D(nn.Module):
     def __init__(self, in_dim, spectral_norm=False, k=8):
         super(SelfAttn1D, self).__init__()
-        self.chanel_in = in_dim
-
         if spectral_norm:
             self.query_conv = nn.utils.spectral_norm(nn.Conv1d(in_channels=in_dim, out_channels=in_dim // k, kernel_size=1))
             self.key_conv = nn.utils.spectral_norm(nn.Conv1d(in_channels=in_dim, out_channels=in_dim // k, kernel_size=1))
