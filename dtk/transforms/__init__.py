@@ -1,4 +1,42 @@
 import random
+import numpy as np
+import math
+
+
+class CutMix(object):
+    def __init__(self, p=0.5, alpha=1.0, beta=1.0):
+        self.alpha = alpha
+        self.beta = beta
+        self.p = p
+
+    def __call__(self, img_batch1, img_batch2):
+        mixed_img = img_batch1.clone().detach()
+
+        batch = mixed_img.size(0)
+        width = mixed_img.size(2)
+        height = mixed_img.size(3)
+
+        for i in range(batch):
+            if random.uniform(0, 1) > self.p:
+                continue
+            ratio = np.random.beta(self.alpha, self.beta)
+            tl, br = self.get_bbox(width, height, ratio)
+            mixed_img[i, :, tl[0]:br[0], tl[1]:br[1]] = img_batch2[i, :, tl[0]:br[0], tl[1]:br[1]].clone().detach()
+
+        return mixed_img
+
+    def get_bbox(self, w, h, ratio):
+        cut_rat = math.sqrt(1.0 - ratio)
+        cut_w = int(w * cut_rat)
+        cut_h = int(h * cut_rat)
+
+        bbxl = int(random.uniform(0, 1) * (w - cut_w))
+        bbyt = int(random.uniform(0, 1) * (h - cut_h))
+
+        bbxr = bbxl + cut_w
+        bbyb = bbyt + cut_h
+
+        return (bbxl, bbyt), (bbxr, bbyb)
 
 
 class RandomCrop(object):
