@@ -10,7 +10,7 @@ class CutMix(object):
         self.p = p
 
     def __call__(self, img_batch1, img_batch2):
-        mixed_img = img_batch1.clone().detach()
+        mixed_img = img_batch1.clone()
 
         batch = mixed_img.size(0)
         width = mixed_img.size(2)
@@ -21,7 +21,7 @@ class CutMix(object):
                 continue
             ratio = np.random.beta(self.alpha, self.beta)
             tl, br = self.get_bbox(width, height, ratio)
-            mixed_img[i, :, tl[0]:br[0], tl[1]:br[1]] = img_batch2[i, :, tl[0]:br[0], tl[1]:br[1]].clone().detach()
+            mixed_img[i, :, tl[0]:br[0], tl[1]:br[1]] = img_batch2[i, :, tl[0]:br[0], tl[1]:br[1]].clone()
 
         return mixed_img
 
