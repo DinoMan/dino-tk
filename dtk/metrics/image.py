@@ -1,6 +1,7 @@
 from skimage.color import rgb2grey
 from scipy import fftpack
 import numpy as np
+import numpy.ma as ma
 
 
 def _dict_divide_(dividends, divisors):
@@ -17,20 +18,35 @@ def _get_hashable_key_(key):
         return int(key)
 
 
-def pixel_accuracy(img1, img2):
+def pixel_accuracy(img1, img2, ignore_value=None):
     if img1.ndim == 3:
         binary_equality = np.all(img1 == img2, axis=2)
     else:
-        binary_equality = (img == img2)
+        binary_equality = (img1 == img2)
 
-    return np.sum(binary_equality) / binary_equality.size
+    matches = np.sum(binary_equality)
+    total = binary_equality.size
+    if ignore_value is not None:
+        ignore_mask = np.logical_or(img1 == ignore_value, img2 == ignore_value)
+        matches -= np.sum(np.logical_and(binary_equality, ignore_mask))
+        total -= np.sum(ignore_mask)
+
+    return matches / total
 
 
-def iou(img1, img2):
-    if img1.ndim == 3:
-        class_ids = np.vstack((np.unique(img1.reshape(-1, img1.shape[2]), axis=0), np.unique(img2.reshape(-1, img2.shape[2]), axis=0)))
+def iou(im1, im2, ignore_value=None):
+    if ignore_value is not None:
+        mask = np.logical_or(im1 == ignore_value, im2 == ignore_value)
+        img1 = ma.masked_array(im1, mask=mask)
+        img2 = ma.masked_array(im2, mask=mask)
     else:
-        class_ids = np.hstack((np.unique(img1.reshape(-1), axis=0), np.unique(img2.reshape(-1), axis=0)))
+        img1 = im1
+        img2 = im2
+
+    if img1.ndim == 3:
+        class_ids = np.unique(np.vstack((np.unique(img1.reshape(-1, img1.shape[2]), axis=0), np.unique(img2.reshape(-1, img2.shape[2]), axis=0))))
+    else:
+        class_ids = np.unique(np.hstack((np.unique(img1.reshape(-1), axis=0), np.unique(img2.reshape(-1), axis=0))))
 
     intersections = {}
     unions = {}
@@ -46,8 +62,12 @@ def iou(img1, img2):
             img1_pixels = (img1 == class_id)
             img2_pixels = (img2 == class_id)
 
-        intersections[_get_hashable_key_(class_id)] = np.sum(np.logical_and(img1_pixels, img2_pixels))
-        unions[_get_hashable_key_(class_id)] = np.sum(np.logical_or(img1_pixels, img2_pixels))
+        intersection = np.sum(np.logical_and(img1_pixels, img2_pixels))
+        union = np.sum(np.logical_or(img1_pixels, img2_pixels))
+
+        if union !=0:
+            intersections[_get_hashable_key_(class_id)] = intersection
+            unions[_get_hashable_key_(class_id)] = union
 
     return _dict_divide_(intersections, unions)
 
