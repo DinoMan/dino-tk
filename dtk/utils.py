@@ -81,7 +81,7 @@ class LandmarkSmootherRTS():
                 # Keep the pred cov matrices and predictions
                 p_pred.append(self.kf.P.copy())
 
-            if np.any(point == self.ignore_value):
+            if ((np.isnan(self.ignore_value) and np.isnan(point).any()) or np.any(point == self.ignore_value)):
                 if self.kf is None:
                     untrackable += 1  # These points can't be processed since we can't initialize the KF
                 else:
@@ -103,7 +103,10 @@ class LandmarkSmootherRTS():
 
         smoothed_points = []
 
-        for i in range(len(points) - 1, -1, -1):
+        if untrackable == len(points):
+            raise ValueError('No valid landmarks to smooth')
+
+        for i in range(len(points) - untrackable - 1, -1, -1):
             if i == len(x) - 1:
                 smooth_x = x[i].copy()
                 smooth_p = p_corr[i].copy()
@@ -113,7 +116,7 @@ class LandmarkSmootherRTS():
                 for idx in range(self.kf.no_points):
                     smooth_x[idx] = x[i][idx] + np.matmul(c, smooth_x[idx] - np.matmul(self.kf.F, x[i][idx].T))
 
-            smoothed_points.append(np.reshape(smooth_x[:, 0], (self.kf.no_points // 2, 2)).copy())
+            smoothed_points.append(np.reshape(smooth_x[:, 0], (self.kf.no_points // self.kf.no_coordinates, self.kf.no_coordinates)).copy())
 
         smoothed_points += untrackable * [smoothed_points[-1]]
         smoothed_points.reverse()
@@ -123,6 +126,7 @@ class LandmarkSmootherRTS():
 class LandmarkTrackerKF():
     def __init__(self, starting_points, fps=25, process_noise=225, detector_accuracy=25):
         dt = 1 / fps
+        self.no_coordinates = starting_points.shape[-1]
         self.F = np.array([[1, dt], [0, 1]])
         self.Q = process_noise * np.array([[(dt ** 3) / 3, (dt ** 2) / 2], [(dt ** 2) / 2, dt]])
         self.R = detector_accuracy
@@ -143,7 +147,7 @@ class LandmarkTrackerKF():
         self.P[1, 1] = self.detector_accuracy
 
     def get_current_estimate(self):
-        return np.reshape(self.x[:, 0], (self.no_points // 2, 2)).copy()
+        return np.reshape(self.x[:, 0], (self.no_points // self.no_coordinates, self.no_coordinates)).copy()
 
     def predict(self):
         self.P = np.matmul(np.matmul(self.F, self.P), self.F.T) + self.Q
@@ -151,7 +155,7 @@ class LandmarkTrackerKF():
         for i in range(self.no_points):
             self.x[i] = np.matmul(self.F, self.x[i].T)
 
-        return np.reshape(self.x[:, 0], (self.no_points // 2, 2)).copy()
+        return np.reshape(self.x[:, 0], (self.no_points // self.no_coordinates, self.no_coordinates)).copy()
 
     def update(self, measurement):
         z = measurement.flatten()
@@ -163,4 +167,4 @@ class LandmarkTrackerKF():
             innovation = z[i] - np.matmul(self.H, self.x[i])
             self.x[i] = self.x[i] + np.matmul(kalman_gain, innovation)
 
-        return np.reshape(self.x[:, 0], (self.no_points // 2, 2)).copy()
+        return np.reshape(self.x[:, 0], (self.no_points // self.no_coordinates, self.no_coordinates)).copy()
