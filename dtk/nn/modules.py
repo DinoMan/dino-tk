@@ -231,11 +231,13 @@ class SelfAttn2D(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x, retain_attention=False):
+    def forward(self, x, mask=None, retain_attention=False):
         batchsize, C, width, height = x.size()
         proj_query = self.query_conv(x).view(batchsize, -1, width * height).permute(0, 2, 1)  # B x C x (W*H)
         proj_key = self.key_conv(x).view(batchsize, -1, width * height)  # B x C x (W*H)
         energy = torch.bmm(proj_query, proj_key)  # matrix multiplication
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
         attention = self.softmax(energy)  # BX (N) X (N)
         proj_value = self.value_conv(x).view(batchsize, -1, width * height)  # B X C X N
 
@@ -266,11 +268,13 @@ class SelfAttn1D(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x, retain_attention=False):
+    def forward(self, x, mask=None, retain_attention=False):
         batchsize, C, length = x.size()
         proj_query = self.query_conv(x).permute(0, 2, 1)  # Transpose
         proj_key = self.key_conv(x)
         energy = torch.bmm(proj_query, proj_key)
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
         attention = self.softmax(energy)
         proj_value = self.value_conv(x).view(batchsize, -1, length)
 
