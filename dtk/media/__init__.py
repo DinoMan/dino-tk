@@ -33,8 +33,9 @@ def save_audio(path, audio, audio_rate=16000):
 
 
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, ffmpeg_experimental=False):
-    out_size = (scale * video.shape[-2], scale * video.shape[-1])
-    video_path = "/tmp/" + next(tempfile._get_candidate_names()) + ".mp4"
+    out_size = (scale * video.shape[-1], scale * video.shape[-2])
+    tmp_filename = next(tempfile._get_candidate_names())
+    video_path = "/tmp/" + tmp_filename + ".mp4"
     writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), out_size)
     if torch.is_tensor(video):
         vid = video.squeeze().detach().cpu().numpy()
@@ -47,16 +48,18 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, ffmpe
         vid = 255 * vid
 
     for frame in vid:
-        frame = np.rollaxis(frame, 0, 3)
+        if frame.ndim == 3:
+            frame = cv2.cvtColor(np.rollaxis(frame, 0, 3), cv2.COLOR_RGB2BGR)
+
         if scale != 1:
             frame = cv2.resize(frame, out_size)
         writer.write(frame.astype('uint8'))
     writer.release()
 
-    inputs = [ffmpeg.input(path)['v']]
+    inputs = [ffmpeg.input(video_path)['v']]
 
     if audio is not None:  # Save the audio file
-        audio_path = "/tmp/" + next(tempfile._get_candidate_names()) + ".wav"
+        audio_path = "/tmp/" + tmp_filename + ".wav"
         save_audio(audio_path, audio, audio_rate)
         inputs += [ffmpeg.input(audio_path)['a']]
 
@@ -88,7 +91,7 @@ def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
     return stream
 
 
-def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=None, ffmpeg_experimental=False):
+def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), ffmpeg_experimental=False):
     if points.ndim == 3 and points.shape[2] > 3:
         warnings.warn("points have dimension larger than 3", RuntimeWarning)
 
