@@ -4,7 +4,23 @@ import re
 from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
+from functools import reduce
 import random
+
+
+def get_common_letters(strlist):
+    return ''.join([x[0] for x in zip(*strlist) if reduce(lambda a, b: (a == b) and a or None, x)])
+
+def find_common_start(file_list):
+    prev = None
+    while True:
+        common = get_common_letters(file_list)
+        if common == prev:
+            break
+        file_list.append(common)
+        prev = common
+
+    return os.path.dirname(get_common_letters(file_list))
 
 
 class ImageDataset(Dataset):
