@@ -102,7 +102,6 @@ def create_windowed_sequence(seqs, snip_length, cut_dim=0, cutting_stride=None, 
     return torch.cat(windowed_seqs)
     
 def variable_length_loss(x, y, lengths, loss_func):
-
     batch_size = x.size(0)
     loss = []
     for i in range(batch_size):
