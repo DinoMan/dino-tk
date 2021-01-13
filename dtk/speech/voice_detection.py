@@ -20,12 +20,6 @@ def calculate_sfm(frame):
     return sfm
 
 
-def calculate_freq_dom(frame):
-    frame_fft = rfft(frame, 1024)
-    fd = 0
-    return fd
-
-
 def extract_features(signal, fs, frame_duration=0.01):
     energy = []
     dominant_freqs = []
