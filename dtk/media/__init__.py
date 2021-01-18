@@ -7,6 +7,8 @@ import os
 from io import BytesIO
 import warnings
 import cv2
+import copy
+from scipy.spatial.transform import Rotation as R
 
 FACE_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10),
               (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16),  # chin
@@ -91,22 +93,31 @@ def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
     return stream
 
 
-def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), ffmpeg_experimental=False):
+def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), rotate=None, ffmpeg_experimental=False):
     if points.ndim == 3 and points.shape[2] > 3:
         warnings.warn("points have dimension larger than 3", RuntimeWarning)
+
+    if rotate is not None and points.shape[2] == 3:
+        r = R.from_euler('zyx', rotate, degrees=True).as_matrix()
+        pts = np.dot(points.reshape(points.shape[0]*points.shape[1], 3), r.T).reshape(points.shape)[:, :, :2]
+    else:
+        pts = copy.deepcopy(points)
+
+    if points.shape[2] == 3:
+        pts = pts[:, :, :2]
 
     if edges == "face":
         edges = FACE_EDGES
 
-    min_coord = np.min(points.reshape((-1, 2)), axis=0)
-    max_coord = np.max(points.reshape((-1, 2)), axis=0)
+    min_coord = np.min(pts.reshape((-1, 2)), axis=0)
+    max_coord = np.max(pts.reshape((-1, 2)), axis=0)
 
     width = int(max_coord[0] - min_coord[0])
     height = int(max_coord[1] - min_coord[1])
 
     video_path = "/tmp/" + next(tempfile._get_candidate_names()) + ".mp4"
     video = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), (height, width))
-    for frame in points:
+    for frame in pts:
         frame = frame - np.array([min_coord[0], min_coord[1]])
         canvas = np.ones((width, height, 3))
         canvas *= (255, 255, 255)  # canvas is by default white
