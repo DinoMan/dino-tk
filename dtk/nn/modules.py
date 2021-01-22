@@ -5,6 +5,7 @@ from .utils import same_padding
 from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 import torch.nn.functional as F
 from math import exp
+from math import sqrt
 
 
 def gaussian(window_size, std_dev):
@@ -14,16 +15,71 @@ def gaussian(window_size, std_dev):
 
 class NoiseInjection2D(nn.Module):
     def __init__(self, channel):
-        super().__init__()
-
+        super(NoiseInjection2D, self).__init__()
         self.weight = nn.Parameter(torch.zeros(1, channel, 1, 1))
 
     def forward(self, x, n):
         return x + self.weight * n
 
 
+class EqualizedLR:
+    # This is similar to spectral norm and is implemented in a similar fashion as spectral norm in pytorch
+    def __init__(self, name):
+        self.name = name
+
+    def compute_weight(self, module):  # Weight normalization using Kaiming normalization
+        weight = getattr(module, self.name + '_orig')
+        fan_in = weight.data.size(1) * weight.data[0][0].numel()
+
+        return weight * sqrt(2 / fan_in)
+
+    @staticmethod
+    def apply(module, name):
+        fn = EqualizedLR(name)  # Creates an object which will normalize the weights
+
+        weight = getattr(module, name)  # Store the original weights
+        del module._parameters[name]  # Delete them
+        module.register_parameter(name + '_orig', nn.Parameter(weight.data))  # Re-register them with a different name
+        module.register_forward_pre_hook(fn)  # Register the equalisation call function as a pre-forward step
+
+        return fn
+
+    def __call__(self, module, input):
+        weight = self.compute_weight(module)
+        setattr(module, self.name, weight)
+
+
+def equalize_lr(module, name='weight'):
+    EqualizedLR.apply(module, name)
+    return module
+
+
+class AdaptiveInstanceNorm(nn.Module):
+    def __init__(self, channels, style_dim, equalized_lr=False):
+        super(AdaptiveInstanceNorm, self).__init__()
+
+        self.norm = nn.InstanceNorm2d(channels)
+        if equalized_lr:
+            self.style = equalize_lr(nn.Linear(style_dim, 2 * channels))
+        else:
+            self.style = nn.Linear(style_dim, 2 * channels)
+
+        self.style.bias.data[:channels] = 1
+        self.style.bias.data[channels:] = 0
+
+    def forward(self, input, style):
+        style = self.style(style).unsqueeze(2).unsqueeze(3)
+        gamma, beta = style.chunk(2, 1)
+
+        out = self.norm(input)
+        out = gamma * out + beta
+
+        return out
+
+
 class GaussianBlur1D(nn.Module):
     def __init__(self, window_size, channels, std_dev=1):
+        super(GaussianBlur1D, self).__init__()
         self.window = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()
 
     def forward(self, x):
@@ -32,6 +88,7 @@ class GaussianBlur1D(nn.Module):
 
 class GaussianBlur2D(nn.Module):
     def __init__(self, window_size, channels, std_dev=1):
+        super(GaussianBlur2D, self).__init__()
         window_1d = gaussian(window_size, std_dev).unsqueeze(1)
         self.window = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, window_size, window_size).contiguous()
 
