@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import math
+import torch
 
 
 class CutMix(object):
@@ -74,3 +75,32 @@ class RandomCrop(object):
             return target[0]
         else:
             return target
+
+
+def transform_landmarks(ref, transformation):
+    ret_np = False
+    if isinstance(ref, np.ndarray):
+        ret_np = True
+        ref = torch.from_numpy(ref)
+        transformation = torch.from_numpy(transformation)
+
+    ref = ref.view(-1, ref.size(-2), ref.size(-1))
+    transformation = transformation.view(-1, transformation.size(-3), transformation.size(-2), transformation.size(-1))
+
+    seq_length = transformation.shape[1]
+    no_points = ref.shape[-2]
+    coordinates = ref.shape[-1]
+
+    rot_matrix = transformation[:, :, :coordinates, :coordinates]
+    out_translation = transformation[:, :, :coordinates, coordinates]
+
+    out_landmarks = torch.bmm(ref[:, None, :, :].repeat(1, seq_length, 1, 1).view(-1, no_points, 3),
+                              rot_matrix.view(-1, 3, 3).transpose(1, 2)).contiguous()
+
+    out_landmarks = out_landmarks.view(-1, out_landmarks.size(-3), out_landmarks.size(-2), out_landmarks.size(-1)) + out_translation[:, :, None, :]
+
+    if ret_np:
+        return out_landmarks.squeeze().numpy()
+    else:
+        return out_landmarks.squeeze()
+

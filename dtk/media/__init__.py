@@ -34,7 +34,7 @@ def save_audio(path, audio, audio_rate=16000):
     wav.write(path, audio_rate, aud)
 
 
-def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, ffmpeg_experimental=False):
+def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
     out_size = (scale * video.shape[-1], scale * video.shape[-2])
     tmp_filename = next(tempfile._get_candidate_names())
     video_path = "/tmp/" + tmp_filename + ".mp4"
@@ -49,13 +49,20 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, ffmpe
     elif np.max(vid) <= 1:
         vid = 255 * vid
 
-    for frame in vid:
+    for i, frame in enumerate(vid):
         if frame.ndim == 3:
             frame = cv2.cvtColor(np.rollaxis(frame, 0, 3), cv2.COLOR_RGB2BGR)
 
         if scale != 1:
             frame = cv2.resize(frame, out_size)
-        writer.write(frame.astype('uint8'))
+
+        write_frame = frame.astype('uint8')
+
+        if overlay_pts is not None:
+            for pt in overlay_pts[i]:
+                cv2.circle(write_frame, (scale * int(pt[0]), scale * int(pt[1])), 2, (0, 0, 0), -1)
+
+        writer.write(write_frame)
     writer.release()
 
     inputs = [ffmpeg.input(video_path)['v']]
@@ -99,7 +106,7 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
 
     if rotate is not None and points.shape[2] == 3:
         r = R.from_euler('zyx', rotate, degrees=True).as_matrix()
-        pts = np.dot(points.reshape(points.shape[0]*points.shape[1], 3), r.T).reshape(points.shape)[:, :, :2]
+        pts = np.dot(points.reshape(points.shape[0] * points.shape[1], 3), r.T).reshape(points.shape)[:, :, :2]
     else:
         pts = copy.deepcopy(points)
 
