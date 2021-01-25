@@ -77,6 +77,36 @@ class RandomCrop(object):
             return target
 
 
+def procrustes(s1, s2):
+    if len(s1.size()) < 3:
+        s1 = s1.unsqueeze(0)
+    if len(s2.size()) < 3:
+        s1 = s1.unsqueeze(0)
+
+    coordinates = s1.size(2)
+
+    mu1 = s1.mean(axis=1, keepdims=True)
+    mu2 = s2.mean(axis=1, keepdims=True)
+
+    x1 = s1 - mu1
+    x2 = s2 - mu2
+
+    var1 = torch.sum(x1 ** 2, dim=1).sum(dim=1)
+
+    cov = x1.transpose(1, 2).bmm(x2)
+    u, s, v = torch.svd(cov)
+
+    z = torch.eye(u.shape[1], device=s1.device).unsqueeze(0)
+    z = z.repeat(u.shape[0], 1, 1)
+    z[:, -1, -1] *= torch.sign(torch.det(u.bmm(v.transpose(1, 2))))
+
+    r = v.bmm(z.bmm(u.permute(0, 2, 1)))
+    scale = torch.cat([torch.trace(x).unsqueeze(0) for x in r.bmm(cov)]) / var1
+    t = mu2.view(-1, coordinates, 1) - (scale.unsqueeze(-1).unsqueeze(-1) * (r.bmm(mu1.view(-1, coordinates, 1))))
+
+    return scale, r, t
+
+
 def transform_landmarks(ref, transformation):
     ret_np = False
     if isinstance(ref, np.ndarray):
@@ -103,4 +133,3 @@ def transform_landmarks(ref, transformation):
         return out_landmarks.squeeze().numpy()
     else:
         return out_landmarks.squeeze()
-
