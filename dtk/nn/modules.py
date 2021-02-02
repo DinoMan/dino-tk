@@ -77,23 +77,63 @@ class AdaptiveInstanceNorm(nn.Module):
         return out
 
 
+class Conv2DMod(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel, demod=True, stride=1, dilation=1, eps=1e-8):
+        super().__init__()
+        self.filters = out_channels
+        self.demod = demod
+        self.kernel = kernel
+        self.stride = stride
+        self.dilation = dilation
+        self.weight = nn.Parameter(torch.randn((out_channels, in_channels, kernel, kernel)))
+        self.eps = eps
+        nn.init.kaiming_normal_(self.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
+
+    def _get_same_padding(self, size, kernel, dilation, stride):
+        return ((size - 1) * (stride - 1) + dilation * (kernel - 1)) // 2
+
+    def forward(self, x, s):
+        b, c, h, w = x.shape
+
+        weights = self.weight[None, :, :, :, :] * (s[:, None, :, None, None] + 1)  # Modulate
+
+        if self.demod:  # Demodulate
+            d = torch.rsqrt((weights ** 2).sum(dim=(2, 3, 4), keepdim=True) + self.eps)
+            weights = weights * d
+
+        x = x.reshape(1, -1, h, w)
+
+        _, _, *ws = weights.shape
+        weights = weights.reshape(b * self.filters, *ws)
+
+        padding = self._get_same_padding(h, self.kernel, self.dilation, self.stride)
+        x = F.conv2d(x, weights, padding=padding, groups=b)
+
+        x = x.reshape(-1, self.filters, h, w)
+        return x
+
+
 class GaussianBlur1D(nn.Module):
     def __init__(self, window_size, channels, std_dev=1):
         super(GaussianBlur1D, self).__init__()
+        self.channels = channels
+        self.window_size = window_size
         self.window = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()
 
     def forward(self, x):
-        return F.conv1d(x, self.window, padding=window // 2, groups=channel)
+        return F.conv1d(x, self.window, padding=self.window_size // 2, groups=self.channels)
 
 
 class GaussianBlur2D(nn.Module):
     def __init__(self, window_size, channels, std_dev=1):
         super(GaussianBlur2D, self).__init__()
+        self.window_size = window_size
+        self.channels = channels
         window_1d = gaussian(window_size, std_dev).unsqueeze(1)
         self.window = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, window_size, window_size).contiguous()
 
     def forward(self, x):
-        return F.conv2d(x, self.window, padding=window // 2, groups=channel)
+        return F.conv2d(x, self.window, padding=self.window_size // 2, groups=self.channels)
 
 
 class ResizeConv2D(nn.Module):

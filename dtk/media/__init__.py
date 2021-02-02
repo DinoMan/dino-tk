@@ -34,6 +34,31 @@ def save_audio(path, audio, audio_rate=16000):
     wav.write(path, audio_rate, aud)
 
 
+def overlay_points(image, overlay_points):
+    if torch.is_tensor(image):
+        img = image.squeeze().detach().cpu().numpy()
+    else:
+        img = image.copy()  # Make a copy so that we don't alter the object
+
+    if torch.is_tensor(overlay_points):
+        overlay_pts = overlay_points.squeeze().detach().cpu().numpy()
+    else:
+        overlay_pts = overlay_points
+
+    if np.min(img) < 0:
+        img = 125 * img + 125
+    elif np.max(img) <= 1:
+        img = 255 * img
+
+    if img.ndim == 3:
+        img= cv2.cvtColor(np.rollaxis(img, 0, 3), cv2.COLOR_RGB2BGR)
+
+    for pt in overlay_pts:
+        cv2.circle(img, (int(pt[0]), int(pt[1])), 2, 0, -1)
+
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
     out_size = (scale * video.shape[-1], scale * video.shape[-2])
     tmp_filename = next(tempfile._get_candidate_names())
@@ -60,7 +85,7 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
 
         if overlay_pts is not None:
             for pt in overlay_pts[i]:
-                cv2.circle(write_frame, (scale * int(pt[0]), scale * int(pt[1])), 2, (0, 0, 0), -1)
+                cv2.circle(write_frame, (int(scale * pt[0]), int(scale * pt[1])), 2, (0, 0, 0), -1)
 
         writer.write(write_frame)
     writer.release()

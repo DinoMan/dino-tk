@@ -77,6 +77,61 @@ class RandomCrop(object):
             return target
 
 
+def normalize_vector(v):
+    batch = v.shape[0]
+    v_mag = torch.sqrt(v.pow(2).sum(1))
+    v_mag = torch.max(v_mag, torch.autograd.Variable(torch.FloatTensor([1e-8]).cuda()))
+    v_mag = v_mag.view(batch, 1).expand(batch, v.shape[1])
+    v = v / v_mag
+    return v
+
+
+def cross_product(u, v):
+    batch = u.shape[0]
+    i = u[:, 1] * v[:, 2] - u[:, 2] * v[:, 1]
+    j = u[:, 2] * v[:, 0] - u[:, 0] * v[:, 2]
+    k = u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]
+
+    out = torch.cat((i.view(batch, 1), j.view(batch, 1), k.view(batch, 1)), 1)  # batch*3
+
+    return out
+
+
+def rot_to_ortho6d(rot_matrix):
+    return np.concatenate((rot_matrix[:, 0], rot_matrix[:, 1]))
+
+
+def ortho6d_to_rot(ortho6d):
+    x_raw = ortho6d[:, 0:3]
+    y_raw = ortho6d[:, 3:6]
+
+    x = normalize_vector(x_raw)
+    z = cross_product(x, y_raw)
+    z = normalize_vector(z)
+    y = cross_product(z, x)
+
+    x = x.view(-1, 3, 1)
+    y = y.view(-1, 3, 1)
+    z = z.view(-1, 3, 1)
+    matrix = torch.cat((x, y, z), 2)
+    return matrix
+
+
+def get_transform_matrix(rotation, translation, scale=None):
+    batch_size = rotation.size(0)
+    num_coordinates = rotation.size(1)
+
+    trans = torch.zeros((batch_size, num_coordinates + 1, num_coordinates + 1), device=rotation.device)
+    if scale is None:
+        trans[:, :num_coordinates, :num_coordinates] = rotation
+    else:
+        trans[:, :num_coordinates, :num_coordinates] = scale.unsqueeze(-1).unsqueeze(-1) * rotation
+    trans[:, :num_coordinates, num_coordinates] = translation.squeeze()
+    trans[:, num_coordinates, num_coordinates] = 1
+
+    return trans
+
+
 def procrustes(s1, s2):
     if len(s1.size()) < 3:
         s1 = s1.unsqueeze(0)
@@ -104,7 +159,7 @@ def procrustes(s1, s2):
     scale = torch.cat([torch.trace(x).unsqueeze(0) for x in r.bmm(cov)]) / var1
     t = mu2.view(-1, coordinates, 1) - (scale.unsqueeze(-1).unsqueeze(-1) * (r.bmm(mu1.view(-1, coordinates, 1))))
 
-    return scale, r, t
+    return scale, r, t.squeeze()
 
 
 def transform_landmarks(ref, transformation):
@@ -127,7 +182,7 @@ def transform_landmarks(ref, transformation):
     out_landmarks = torch.bmm(ref[:, None, :, :].repeat(1, seq_length, 1, 1).view(-1, no_points, 3),
                               rot_matrix.view(-1, 3, 3).transpose(1, 2)).contiguous()
 
-    out_landmarks = out_landmarks.view(-1, out_landmarks.size(-3), out_landmarks.size(-2), out_landmarks.size(-1)) + out_translation[:, :, None, :]
+    out_landmarks = out_landmarks.view(-1, seq_length, no_points, coordinates) + out_translation[:, :, None, :]
 
     if ret_np:
         return out_landmarks.squeeze().numpy()
