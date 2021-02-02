@@ -80,7 +80,8 @@ class AdaptiveInstanceNorm(nn.Module):
 class Conv2DMod(nn.Module):
     def __init__(self, in_channels, out_channels, kernel, demod=True, stride=1, dilation=1, eps=1e-8):
         super().__init__()
-        self.filters = out_channels
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.demod = demod
         self.kernel = kernel
         self.stride = stride
@@ -92,8 +93,13 @@ class Conv2DMod(nn.Module):
     def _get_same_padding(self, size, kernel, dilation, stride):
         return ((size - 1) * (stride - 1) + dilation * (kernel - 1)) // 2
 
+    def extra_repr(self):
+        return 'in_channels={}, out_channels={}, kernel={}, stride={}'.format(
+            self.in_channels, self.out_channels, self.kernel, self.stride is not None
+        )
+
     def forward(self, x, s):
-        b, c, h, w = x.shape
+        b, c, h, w = x.size()
 
         weights = self.weight[None, :, :, :, :] * (s[:, None, :, None, None] + 1)  # Modulate
 
@@ -104,12 +110,12 @@ class Conv2DMod(nn.Module):
         x = x.reshape(1, -1, h, w)
 
         _, _, *ws = weights.shape
-        weights = weights.reshape(b * self.filters, *ws)
+        weights = weights.reshape(b * self.out_channels, *ws)
 
         padding = self._get_same_padding(h, self.kernel, self.dilation, self.stride)
         x = F.conv2d(x, weights, padding=padding, groups=b)
 
-        x = x.reshape(-1, self.filters, h, w)
+        x = x.reshape(-1, self.out_channels, h, w)
         return x
 
 
