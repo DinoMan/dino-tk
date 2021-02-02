@@ -120,26 +120,33 @@ class Conv2DMod(nn.Module):
 
 
 class GaussianBlur1D(nn.Module):
-    def __init__(self, window_size, channels, std_dev=1):
+    def __init__(self, kernel_size, channels, std_dev=1):
         super(GaussianBlur1D, self).__init__()
-        self.channels = channels
-        self.window_size = window_size
+        self.filter = nn.Conv1d(in_channels=channels, out_channels=channels,
+                                kernel_size=kernel_size, groups=channels, bias=False)
+
+        self.filter.weight.data = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()  # Set the kernel
+        self.filter.weight.requires_grad = False  # The kernel weights are gaussian they are not trainable
+
         self.window = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()
 
     def forward(self, x):
-        return F.conv1d(x, self.window, padding=self.window_size // 2, groups=self.channels)
+        return self.filter(x)
 
 
 class GaussianBlur2D(nn.Module):
-    def __init__(self, window_size, channels, std_dev=1):
+    def __init__(self, kernel_size, channels, std_dev=1):
         super(GaussianBlur2D, self).__init__()
-        self.window_size = window_size
-        self.channels = channels
+
         window_1d = gaussian(window_size, std_dev).unsqueeze(1)
-        self.window = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, window_size, window_size).contiguous()
+        self.filter = nn.Conv2d(in_channels=channels, out_channels=channels, kernel_size=kernel_size, groups=channels, bias=False)
+
+        self.filter.weight.data = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, window_size,
+                                                                                                       window_size).contiguous()
+        self.filter.weight.requires_grad = False  # The kernel weights are gaussian they are not trainable
 
     def forward(self, x):
-        return F.conv2d(x, self.window, padding=self.window_size // 2, groups=self.channels)
+        return self.filter(x)
 
 
 class ResizeConv2D(nn.Module):
