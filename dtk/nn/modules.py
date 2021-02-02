@@ -125,10 +125,10 @@ class GaussianBlur1D(nn.Module):
         self.filter = nn.Conv1d(in_channels=channels, out_channels=channels,
                                 kernel_size=kernel_size, groups=channels, bias=False)
 
-        self.filter.weight.data = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()  # Set the kernel
+        self.filter.weight.data = gaussian(kernel_size, std_dev).unsqueeze(0).expand(channels, 1, kernel_size).contiguous()  # Set the kernel
         self.filter.weight.requires_grad = False  # The kernel weights are gaussian they are not trainable
 
-        self.window = gaussian(window_size, std_dev).unsqueeze(0).expand(channels, 1, window_size).contiguous()
+        self.window = gaussian(kernel_size, std_dev).unsqueeze(0).expand(channels, 1, kernel_size).contiguous()
 
     def forward(self, x):
         return self.filter(x)
@@ -138,11 +138,11 @@ class GaussianBlur2D(nn.Module):
     def __init__(self, kernel_size, channels, std_dev=1):
         super(GaussianBlur2D, self).__init__()
 
-        window_1d = gaussian(window_size, std_dev).unsqueeze(1)
+        window_1d = gaussian(kernel_size, std_dev).unsqueeze(1)
         self.filter = nn.Conv2d(in_channels=channels, out_channels=channels, kernel_size=kernel_size, groups=channels, bias=False)
 
-        self.filter.weight.data = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, window_size,
-                                                                                                       window_size).contiguous()
+        self.filter.weight.data = window_1d.mm(window_1d.t()).float().unsqueeze(0).unsqueeze(0).expand(channels, 1, kernel_size,
+                                                                                                       kernel_size).contiguous()
         self.filter.weight.requires_grad = False  # The kernel weights are gaussian they are not trainable
 
     def forward(self, x):
