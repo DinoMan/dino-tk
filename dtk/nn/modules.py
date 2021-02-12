@@ -78,20 +78,16 @@ class AdaptiveInstanceNorm(nn.Module):
 
 
 class Conv2DMod(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel, demod=True, stride=1, dilation=1, eps=1e-8):
+    def __init__(self, in_channels, out_channels, kernel, demod=True, stride=1, eps=1e-8):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.demod = demod
         self.kernel = kernel
         self.stride = stride
-        self.dilation = dilation
         self.weight = nn.Parameter(torch.randn((out_channels, in_channels, kernel, kernel)))
         self.eps = eps
         nn.init.kaiming_normal_(self.weight, a=0, mode='fan_in', nonlinearity='leaky_relu')
-
-    def _get_same_padding(self, size, kernel, dilation, stride):
-        return ((size - 1) * (stride - 1) + dilation * (kernel - 1)) // 2
 
     def extra_repr(self):
         return 'in_channels={}, out_channels={}, kernel={}, stride={}'.format(
@@ -112,7 +108,7 @@ class Conv2DMod(nn.Module):
         _, _, *ws = weights.shape
         weights = weights.reshape(b * self.out_channels, *ws)
 
-        padding = self._get_same_padding(h, self.kernel, self.dilation, self.stride)
+        padding = same_padding(self.kernel, stride=self.stride) // 2
         x = F.conv2d(x, weights, padding=padding, groups=b)
 
         x = x.reshape(-1, self.out_channels, h, w)
@@ -247,7 +243,7 @@ class UnetBlock2D(nn.Module):
         if spectral_norm:
             if resize_convs:
                 self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
-                self.dcl2 = ResizeConv2D(in_channels, out_channels, kernel_size, scale_factor=stride, bias=bias, spectral_norm=True)
+                self.dcl2 = ResizeConv2D(in_channels, out_channels, kernel_size, scale_factor=stride, bias=bias, spectral_norm=spectral_norm)
             else:
                 self.dcl1 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels + skip_channels, in_channels, 3, padding=1, bias=bias))
                 self.dcl2 = nn.utils.spectral_norm(nn.ConvTranspose2d(in_channels, out_channels, kernel_size,
@@ -271,8 +267,6 @@ class UnetBlock2D(nn.Module):
         self.out_size_required = tuple(x * stride for x in in_size)
 
     def forward(self, x, s):
-        s = s.view(x.size())
-
         x = torch.cat([x, s], 1)
 
         x = self.dcl1(x)
@@ -349,6 +343,7 @@ class SelfAttn2D(nn.Module):
         energy = torch.bmm(proj_query, proj_key)  # matrix multiplication
         if mask is not None:
             energy = energy.masked_fill(mask == 0, float("-1e20"))
+
         attention = self.softmax(energy)  # BX (N) X (N)
         proj_value = self.value_conv(x).view(batchsize, -1, width * height)  # B X C X N
 

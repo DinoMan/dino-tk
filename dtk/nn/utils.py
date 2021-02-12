@@ -100,7 +100,8 @@ def create_windowed_sequence(seqs, snip_length, cut_dim=0, cutting_stride=None, 
         windowed_seqs.append(cut_n_stack(seq, snip_length, cut_dim, cutting_stride, pad_samples).unsqueeze(0))
 
     return torch.cat(windowed_seqs)
-    
+
+
 def variable_length_loss(x, y, lengths, loss_func):
     batch_size = x.size(0)
     loss = []
@@ -234,12 +235,15 @@ def subsample_batch(tensor, sample_size, indices=None, lengths=None):
     return torch.stack(tensor_list).squeeze(), indices
 
 
-def broadcast_elements(batch, repeat_no):
-    total_tensors = []
-    for i in range(0, batch.size()[0]):
-        total_tensors += [torch.stack(repeat_no * [batch[i]])]
+def broadcast_elements(batch, repeat_no, hard_copy=False):
+    batch = batch.unsqueeze(1)
+    batch_size = list(batch.size())
+    batch_size[1] = repeat_no
 
-    return torch.stack(total_tensors)
+    if hard_copy:
+        return batch.expand(batch_size).contiguous()
+
+    return batch.expand(batch_size)
 
 
 def model_size(model, only_trainable=False):
