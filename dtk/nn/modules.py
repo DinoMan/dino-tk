@@ -22,6 +22,25 @@ class NoiseInjection2D(nn.Module):
         return x + self.weight * n
 
 
+class Renormalization2D(nn.Module):
+    def __init__(self, old_mean, old_std, new_mean, new_std, scale=1):
+        super(Renormalization2D, self).__init__()
+        self.old_mean = torch.tensor(old_mean, requires_grad=False)
+        self.old_std = torch.tensor(old_std, requires_grad=False)
+        self.new_mean = torch.tensor(new_mean, requires_grad=False)
+        self.new_std = torch.tensor(new_std, requires_grad=False)
+        self.scale = scale
+
+    def extra_repr(self):
+        return 'old_mean={}, old_std={}, new_mean={}, new_std={}'.format(
+            self.old_mean, self.old_std, self.new_mean, self.new_std)
+
+    def forward(self, x):
+        x = self.scale * (x * self.old_std[None, :, None, None] + self.old_mean[None, :, None, None])
+        x = (x - self.new_mean[None, :, None, None]) / self.new_std[None, :, None, None]
+        return x
+
+
 class EqualizedLR:
     # This is similar to spectral norm and is implemented in a similar fashion as spectral norm in pytorch
     def __init__(self, name):
@@ -91,8 +110,7 @@ class Conv2DMod(nn.Module):
 
     def extra_repr(self):
         return 'in_channels={}, out_channels={}, kernel={}, stride={}'.format(
-            self.in_channels, self.out_channels, self.kernel, self.stride is not None
-        )
+            self.in_channels, self.out_channels, self.kernel, self.stride)
 
     def forward(self, x, s):
         b, c, h, w = x.size()

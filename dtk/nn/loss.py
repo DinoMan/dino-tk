@@ -50,7 +50,7 @@ class GradientPenalty(nn.Module):
         if cond is None:
             func_interpolates = func(interpolates)
         else:  # If we have a condition then feed it to the critic
-            func_interpolates = func(interpolates, cond)
+            func_interpolates = func(interpolates, *cond)
 
         # get the gradient of the function at the interpolates
         gradients = autograd.grad(outputs=func_interpolates, inputs=interpolates,
