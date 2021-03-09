@@ -25,10 +25,10 @@ class NoiseInjection2D(nn.Module):
 class Renormalization2D(nn.Module):
     def __init__(self, old_mean, old_std, new_mean, new_std, scale=1):
         super(Renormalization2D, self).__init__()
-        self.old_mean = torch.tensor(old_mean, requires_grad=False)
-        self.old_std = torch.tensor(old_std, requires_grad=False)
-        self.new_mean = torch.tensor(new_mean, requires_grad=False)
-        self.new_std = torch.tensor(new_std, requires_grad=False)
+        self.register_buffer('old_mean', torch.tensor(old_mean, requires_grad=False))
+        self.register_buffer('old_std', torch.tensor(old_std, requires_grad=False))
+        self.register_buffer('new_mean', torch.tensor(new_mean, requires_grad=False))
+        self.register_buffer('new_std', torch.tensor(new_std, requires_grad=False))
         self.scale = scale
 
     def extra_repr(self):
