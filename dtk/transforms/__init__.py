@@ -149,11 +149,11 @@ def procrustes(s1, s2):
     var1 = torch.sum(x1 ** 2, dim=1).sum(dim=1)
 
     cov = x1.transpose(1, 2).bmm(x2)
-    u, s, v = torch.svd(cov)
+    u, s, v = torch.svd(cov.float())
 
     z = torch.eye(u.shape[1], device=s1.device).unsqueeze(0)
     z = z.repeat(u.shape[0], 1, 1)
-    z[:, -1, -1] *= torch.sign(torch.det(u.bmm(v.transpose(1, 2))))
+    z[:, -1, -1] *= torch.sign(torch.det(u.bmm(v.transpose(1, 2)).float()))
 
     r = v.bmm(z.bmm(u.permute(0, 2, 1)))
     scale = torch.cat([torch.trace(x).unsqueeze(0) for x in r.bmm(cov)]) / var1
