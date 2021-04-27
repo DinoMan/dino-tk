@@ -70,7 +70,7 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
         vid = video.copy()  # Make a copy so that we don't alter the object
 
     if np.min(vid) < 0:
-        vid = 125 * vid + 125
+        vid = 127 * vid + 127
     elif np.max(vid) <= 1:
         vid = 255 * vid
 

@@ -2,7 +2,16 @@ from functools import reduce
 import operator
 import numpy as np
 from numpy.linalg import inv
+import os, sys
 
+class suppress_stdout:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
 
 def run_once(f):
     def wrapper(*args, **kwargs):
