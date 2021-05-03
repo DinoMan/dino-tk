@@ -99,9 +99,9 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
 
     try:
         if ffmpeg_experimental:
-            out = ffmpeg.output(*inputs, path, strict='-2', loglevel="panic").overwrite_output()
+            out = ffmpeg.output(*inputs, path, strict='-2', loglevel="panic", vcodec='h264').overwrite_output()
         else:
-            out = ffmpeg.output(*inputs, path, loglevel="panic").overwrite_output()
+            out = ffmpeg.output(*inputs, path, loglevel="panic", vcodec='h264').overwrite_output()
         out.run(quiet=True)
     except:
         return False
@@ -171,9 +171,9 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
 
     try:
         if ffmpeg_experimental:
-            out = ffmpeg.output(*inputs, path, strict='-2', loglevel="panic").overwrite_output()
+            out = ffmpeg.output(*inputs, path, strict='-2', loglevel="panic", vcodec='h264').overwrite_output()
         else:
-            out = ffmpeg.output(*inputs, path, loglevel="panic").overwrite_output()
+            out = ffmpeg.output(*inputs, path, loglevel="panic", vcodec='h264').overwrite_output()
         out.run(quiet=True)
     except:
         return False
