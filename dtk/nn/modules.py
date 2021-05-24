@@ -509,16 +509,17 @@ class ResNet2D(nn.Module):
 
 
 class ResNet3D(nn.Module):
-    def __init__(self, latent, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], zero_init_residual=False):
+    def __init__(self, code_size, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], window_size=5,
+                 zero_init_residual=False):
         super(ResNet3D, self).__init__()
         self.inplanes = feature_maps[0]
         self.channels = channels
         self.feature_maps = feature_maps
-        self.latent = latent
+        self.code_size = code_size
 
         self.resnet_blocks = nn.ModuleList()
         self.front_end = nn.Sequential(
-            nn.Conv3d(channels, self.feature_maps[0], kernel_size=(5, 7, 7), stride=(1, 2, 2), padding=(2, 3, 3),
+            nn.Conv3d(channels, self.feature_maps[0], kernel_size=(window_size, 7, 7), stride=(1, 2, 2), padding=(window_size // 2, 3, 3),
                       bias=False),
             nn.BatchNorm3d(self.feature_maps[0]),
             nn.ReLU(inplace=True),
@@ -527,7 +528,7 @@ class ResNet3D(nn.Module):
 
         for i, l in enumerate(layers):
             self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2))
-        self.resnet_blocks.append(self._make_layer(block, self.latent, 1))
+        self.resnet_blocks.append(self._make_layer(block, self.code_size, 1))
         self.resnet_blocks.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         for m in self.modules():
@@ -564,6 +565,8 @@ class ResNet3D(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
+        length = x.size(1)
+        x = x.transpose(1, 2)
         x = self.front_end(x)
         x = x.transpose(1, 2)
         x = x.contiguous()
@@ -571,7 +574,7 @@ class ResNet3D(nn.Module):
         for blk in self.resnet_blocks:
             x = blk(x)
 
-        return x.view(-1, self.latent)
+        return x.view(-1, length, self.code_size)
 
 
 class Deconv2D(nn.Module):
