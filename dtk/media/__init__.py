@@ -34,29 +34,39 @@ def save_audio(path, audio, audio_rate=16000):
     wav.write(path, audio_rate, aud)
 
 
-def overlay_points(image, overlay_points):
-    if torch.is_tensor(image):
-        img = image.squeeze().detach().cpu().numpy()
+def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
+    if torch.is_tensor(data):
+        frames = data
     else:
-        img = image.copy()  # Make a copy so that we don't alter the object
+        frames = torch.from_numpy(data)
+
+    if not inplace:
+        frames = frames.clone()
 
     if torch.is_tensor(overlay_points):
         overlay_pts = overlay_points.squeeze().detach().cpu().numpy()
     else:
         overlay_pts = overlay_points
 
-    if np.min(img) < 0:
-        img = 125 * img + 125
-    elif np.max(img) <= 1:
-        img = 255 * img
+    overlay_pts = overlay_pts.reshape(-1, overlay_points.shape[-2], overlay_points.shape[-1])
 
-    if img.ndim == 3:
-        img= cv2.cvtColor(np.rollaxis(img, 0, 3), cv2.COLOR_RGB2BGR)
+    mask = np.zeros((overlay_pts.shape[0], frames.shape[-2], frames.shape[-1]))
+    for i, pts in enumerate(overlay_pts):
+        for pt in pts:
+            cv2.circle(mask[i], (int(pt[0]), int(pt[1])), radius, 1, -1)
 
-    for pt in overlay_pts:
-        cv2.circle(img, (int(pt[0]), int(pt[1])), 2, 0, -1)
+    mask = torch.from_numpy(mask).bool().to(frames.device)
 
-    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    while frames.dim() < 4:
+        frames = frames.unsqueeze(0)
+
+    for i, channel_color in enumerate(color):
+        frames[:, i] = frames[:, i].masked_fill(mask, channel_color)
+
+    if torch.is_tensor(data):
+        return frames
+    else:
+        return frames.detach().cpu().numpy()
 
 
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
