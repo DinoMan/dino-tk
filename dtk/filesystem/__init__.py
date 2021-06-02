@@ -6,10 +6,27 @@ from torchvision import transforms
 from PIL import Image
 from functools import reduce
 import random
+import arrow
+
+
+def remove_old_files(folder, ext=None, weeks=0, days=0, hours=0, suppress_warnings=True):
+    files = list_files(folder, file_filter=Filter(ext=ext))
+    critical_time = arrow.now().shift(weeks=-weeks).shift(days=-days).shift(hours=-hours)
+    for f in files:
+        try:
+            file_time = arrow.get(os.stat(f).st_mtime)
+            if file_time < critical_time:
+                os.remove(f)
+        except Exception as e:
+            if suppress_warnings:
+                pass
+            else:
+                warnings.warn(str(e), RuntimeWarning)
 
 
 def get_common_letters(strlist):
     return ''.join([x[0] for x in zip(*strlist) if reduce(lambda a, b: (a == b) and a or None, x)])
+
 
 def find_common_start(file_list):
     prev = None

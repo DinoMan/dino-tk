@@ -9,5 +9,6 @@ setup(name='dtk',
           'torch',
           'numpy',
           'scikit-image',
+          'arrow',
       ],
       zip_safe=False)
