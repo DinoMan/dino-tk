@@ -3,6 +3,17 @@ import operator
 import numpy as np
 from numpy.linalg import inv
 import os, sys
+import tempfile
+
+def get_temp_path(ext=""):
+    file_path = next(tempfile._get_candidate_names()) + ext
+    if os.path.exists("/tmp"):# If tmp exists then prepend to the path
+        file_path = "/tmp/" + file_path
+
+    return file_path
+
+def swp_extension(file, ext):
+    return os.path.splitext(file)[0] + ext
 
 class suppress_stdout:
     def __enter__(self):

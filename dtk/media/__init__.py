@@ -2,13 +2,14 @@ import ffmpeg
 import scipy.io.wavfile as wav
 import numpy as np
 import torch
-import tempfile
 import os
 from io import BytesIO
 import warnings
 import cv2
 import copy
 from scipy.spatial.transform import Rotation as R
+from dtk.utils import get_temp_path, swp_extension
+
 
 FACE_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10),
               (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16),  # chin
@@ -22,7 +23,6 @@ FACE_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8
               (54, 55), (55, 56), (56, 57), (57, 58), (58, 59), (59, 48),  # outer mouth
               (60, 61), (61, 62), (62, 63), (63, 64), (64, 65), (65, 66),
               (66, 67), (67, 60)]  # inner mouth
-
 
 def save_audio(path, audio, audio_rate=16000):
     if torch.is_tensor(audio):
@@ -71,8 +71,7 @@ def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
 
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
     out_size = (scale * video.shape[-1], scale * video.shape[-2])
-    tmp_filename = next(tempfile._get_candidate_names())
-    video_path = "/tmp/" + tmp_filename + ".mp4"
+    video_path = get_temp_path(ext=".mp4")
     writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), out_size)
     if torch.is_tensor(video):
         vid = video.squeeze().detach().cpu().numpy()
@@ -103,7 +102,7 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
     inputs = [ffmpeg.input(video_path)['v']]
 
     if audio is not None:  # Save the audio file
-        audio_path = "/tmp/" + tmp_filename + ".wav"
+        audio_path = swp_extension(video_path, ".wav")
         save_audio(audio_path, audio, audio_rate)
         inputs += [ffmpeg.input(audio_path)['a']]
 
@@ -125,7 +124,7 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
 
 
 def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
-    temp_file = "/tmp/" + next(tempfile._get_candidate_names()) + ".mp4"
+    temp_file = get_temp_path(ext=".mp4")
     save_video(temp_file, video, audio=audio, fps=fps, audio_rate=audio_rate)
     stream = BytesIO(open(temp_file, "rb").read())
 
@@ -157,7 +156,7 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
     width = int(max_coord[0] - min_coord[0])
     height = int(max_coord[1] - min_coord[1])
 
-    video_path = "/tmp/" + next(tempfile._get_candidate_names()) + ".mp4"
+    video_path = get_temp_path(ext=".mp4")
     video = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), (height, width))
     for frame in pts:
         frame = frame - np.array([min_coord[0], min_coord[1]])
@@ -175,7 +174,7 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
 
     inputs = [ffmpeg.input(video_path)['v']]
     if audio is not None:  # Save the audio file
-        audio_path = "/tmp/" + next(tempfile._get_candidate_names()) + ".wav"
+        audio_path = get_temp_path(ext=".wav")
         save_audio(audio_path, audio, audio_rate)
         inputs += [ffmpeg.input(audio_path)['a']]
 
@@ -198,7 +197,7 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
 
 
 def joint_animation_to_stream(points, edges, fps=25, audio=None, audio_rate=16000, colour=None):
-    temp_file = "/tmp/" + next(tempfile._get_candidate_names()) + ".mp4"
+    temp_file = get_temp_path(ext=".mp4")
     save_joint_animation(temp_file, points, edges, fps=fps, audio=audio, audio_rate=audio_rate, colour=colour)
     stream = BytesIO(open(temp_file, "rb").read())
 
