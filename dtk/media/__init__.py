@@ -35,39 +35,43 @@ def save_audio(path, audio, audio_rate=16000):
 
 
 def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
-    if torch.is_tensor(data):
-        frames = data
-    else:
-        frames = torch.from_numpy(data)
+    try:
+        if torch.is_tensor(data):
+            frames = data
+        else:
+            frames = torch.from_numpy(data)
 
-    if not inplace:
-        frames = frames.clone()
+        if not inplace:
+            frames = frames.clone()
 
-    if torch.is_tensor(overlay_points):
-        overlay_pts = overlay_points.squeeze().detach().cpu().numpy()
-    else:
-        overlay_pts = overlay_points
+        if torch.is_tensor(overlay_points):
+            overlay_pts = overlay_points.squeeze().detach().cpu().numpy()
+        else:
+            overlay_pts = overlay_points
 
-    overlay_pts = overlay_pts.reshape(-1, overlay_points.shape[-2], overlay_points.shape[-1])
+        overlay_pts = overlay_pts.reshape(-1, overlay_points.shape[-2], overlay_points.shape[-1])
 
-    mask = np.zeros((overlay_pts.shape[0], frames.shape[-2], frames.shape[-1]))
-    for i, pts in enumerate(overlay_pts):
-        for pt in pts:
-            cv2.circle(mask[i], (int(pt[0]), int(pt[1])), radius, 1, -1)
+        mask = np.zeros((overlay_pts.shape[0], frames.shape[-2], frames.shape[-1]))
+        for i, pts in enumerate(overlay_pts):
+            for pt in pts:
+                cv2.circle(mask[i], (int(pt[0]), int(pt[1])), radius, 1, -1)
 
-    mask = torch.from_numpy(mask).bool().to(frames.device)
+        mask = torch.from_numpy(mask).bool().to(frames.device)
 
-    while frames.dim() < 4:
-        frames = frames.unsqueeze(0)
+        while frames.dim() < 4:
+            frames = frames.unsqueeze(0)
 
-    for i, channel_color in enumerate(color):
-        frames[:, i] = frames[:, i].masked_fill(mask, channel_color)
+        for i, channel_color in enumerate(color):
+            frames[:, i] = frames[:, i].masked_fill(mask, channel_color)
 
-    if torch.is_tensor(data):
-        return frames
-    else:
-        return frames.detach().cpu().numpy()
-
+        if torch.is_tensor(data):
+            return frames
+        else:
+            return frames.detach().cpu().numpy()
+    
+    except Exception as e:
+        warnings.warn("number of frames do not match", RuntimeWarning)
+        return data
 
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
     out_size = (scale * video.shape[-1], scale * video.shape[-2])
