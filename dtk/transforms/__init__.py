@@ -3,6 +3,7 @@ import numpy as np
 import math
 import torch
 from .video import CenterCropVideo, ToTensorVideo, NormalizeVideo, RandomHorizontalFlipVideo
+from .audio import AmplitudeToDB
 
 
 class CutMix(object):

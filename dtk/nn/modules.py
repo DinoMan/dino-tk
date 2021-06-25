@@ -22,6 +22,15 @@ class NoiseInjection2D(nn.Module):
         return x + self.weight * n
 
 
+class RGB2GRAY(nn.Module):
+    def __init__(self, weights=(1, 1, 1)):
+        super(RGB2GRAY, self).__init__()
+        self.weights = weights
+
+    def forward(self, x):
+        return ((self.weights[0] * x[:, 0] + self.weights[1] * x[:, 1] + self.weights[2] * x[:, 2]) / sum(self.weights)).unsqueeze(1)
+
+
 class Renormalization2D(nn.Module):
     def __init__(self, old_mean, old_std, new_mean, new_std, scale=1):
         super(Renormalization2D, self).__init__()
@@ -36,8 +45,13 @@ class Renormalization2D(nn.Module):
             self.old_mean, self.old_std, self.new_mean, self.new_std)
 
     def forward(self, x):
-        x = self.scale * (x * self.old_std[None, :, None, None] + self.old_mean[None, :, None, None])
-        x = (x - self.new_mean[None, :, None, None]) / self.new_std[None, :, None, None]
+        if self.old_std.ndim == 0:
+            x = self.scale * (x * self.old_std + self.old_mean)
+            x = (x - self.new_mean) / self.new_std
+        else:
+            x = self.scale * (x * self.old_std[None, :, None, None] + self.old_mean[None, :, None, None])
+            x = (x - self.new_mean[None, :, None, None]) / self.new_std[None, :, None, None]
+
         return x
 
 

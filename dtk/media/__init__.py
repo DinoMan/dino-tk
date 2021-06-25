@@ -10,7 +10,6 @@ import copy
 from scipy.spatial.transform import Rotation as R
 from dtk.utils import get_temp_path, swp_extension
 
-
 FACE_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10),
               (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16),  # chin
               (17, 18), (18, 19), (19, 20), (20, 21),  # right eyebrow
@@ -24,6 +23,7 @@ FACE_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8
               (60, 61), (61, 62), (62, 63), (63, 64), (64, 65), (65, 66),
               (66, 67), (67, 60)]  # inner mouth
 
+
 def save_audio(path, audio, audio_rate=16000):
     if torch.is_tensor(audio):
         aud = audio.squeeze().detach().cpu().numpy()
@@ -32,6 +32,16 @@ def save_audio(path, audio, audio_rate=16000):
 
     aud = ((2 ** 15) * aud).astype(np.int16)
     wav.write(path, audio_rate, aud)
+
+
+def format_spectrogram(spectrogram, contrast=1, colormap=cv2.COLORMAP_BONE, normalize=False):
+    img = spectrogram.squeeze().detach().cpu().numpy()
+    if normalize:
+        img = np.clip(img - img.mean(), -img.std(), img.std())
+
+    img = cv2.normalize(img, None, alpha=0, beta=int(255 * contrast), norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+    img = cv2.applyColorMap(img, colormap)
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
 def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
@@ -68,15 +78,16 @@ def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
             return frames
         else:
             return frames.detach().cpu().numpy()
-    
+
     except Exception as e:
         warnings.warn("number of frames do not match", RuntimeWarning)
         return data
 
+
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
+    success = True    
     out_size = (scale * video.shape[-1], scale * video.shape[-2])
     video_path = get_temp_path(ext=".mp4")
-    writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), out_size)
     if torch.is_tensor(video):
         vid = video.squeeze().detach().cpu().numpy()
     else:
@@ -87,8 +98,13 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
     elif np.max(vid) <= 1:
         vid = 255 * vid
 
+    is_color = True
+    if vid.ndim == 3:
+        is_color = False
+
+    writer = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), float(fps), out_size, isColor=is_color)
     for i, frame in enumerate(vid):
-        if frame.ndim == 3:
+        if is_color:
             frame = cv2.cvtColor(np.rollaxis(frame, 0, 3), cv2.COLOR_RGB2BGR)
 
         if scale != 1:
@@ -117,14 +133,14 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
             out = ffmpeg.output(*inputs, path, loglevel="panic", vcodec='h264').overwrite_output()
         out.run(quiet=True)
     except:
-        return False
+        success = False
 
     if audio is not None and os.path.isfile(audio_path):
         os.remove(audio_path)
     if os.path.isfile(video_path):
         os.remove(video_path)
 
-    return True
+    return success
 
 
 def video_to_stream(video, audio=None, fps=25, audio_rate=16000):

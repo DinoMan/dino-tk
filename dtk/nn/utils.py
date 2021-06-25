@@ -251,3 +251,41 @@ def model_size(model, only_trainable=False):
         sum(p.numel() for p in model.parameters() if p.requires_grad)
     else:
         return sum(p.numel() for p in model.parameters())
+
+
+def crop(images, centres, window):
+    b, c, h, w = images.size()
+    if isinstance(window, int):
+        window_w = window
+        window_h = window
+    else:
+        window_w = window[1]
+        window_h = window[0]
+
+    centres = centres.squeeze()
+    cropped = []
+    for i, image in enumerate(images):
+        start_w = int(centres[i, 0].detach().cpu().numpy()) - window_w // 2
+        end_w = int(centres[i, 0].detach().cpu().numpy()) + window_w // 2
+        start_h = int(centres[i, 1].detach().cpu().numpy()) - window_h // 2
+        end_h = int(centres[i, 1].detach().cpu().numpy()) + window_h // 2
+
+        if start_h < 0:
+            start_h = 0
+            end_h = window_h
+
+        if end_h >= h:
+            start_h = h - 1 - window_h
+            end_h = h - 1
+
+        if start_w < 0:
+            start_w = 0
+            end_w = window_w
+
+        if end_w >= w:
+            start_w = w - 1 - window_w
+            end_w = w - 1
+
+        cropped.append(image[:, start_h:end_h, start_w:end_w].unsqueeze(0))
+
+    return torch.cat(cropped)
