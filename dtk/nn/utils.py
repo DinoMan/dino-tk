@@ -275,16 +275,16 @@ def crop(images, centres, window):
             end_h = window_h
 
         if end_h >= h:
-            start_h = h - 1 - window_h
-            end_h = h - 1
+            start_h = h - window_h
+            end_h = h
 
         if start_w < 0:
             start_w = 0
             end_w = window_w
 
         if end_w >= w:
-            start_w = w - 1 - window_w
-            end_w = w - 1
+            start_w = w - window_w
+            end_w = w
 
         cropped.append(image[:, start_h:end_h, start_w:end_w].unsqueeze(0))
 

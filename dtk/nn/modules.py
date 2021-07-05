@@ -217,21 +217,23 @@ class VideoDownsizer(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden=[128], norm=None):
+    def __init__(self, input_size, output_size, hidden=[128], norm=None, activation=None, activation_params=[]):
         super(MLP, self).__init__()
-
         self.layers = nn.ModuleList()
         layer_input = [input_size]
         layer_input.extend(hidden)
+        if activation is None:
+            activation = nn.ReLU
+            activation_params = [True]
 
         for i in range(0, len(layer_input) - 1):
             if norm is not None:
                 self.layers.append(nn.Sequential(nn.Linear(layer_input[i], layer_input[i + 1]),
                                                  norm(layer_input[i + 1]),
-                                                 nn.ReLU(True)))
+                                                 activation(*activation_params)))
             else:
                 self.layers.append(nn.Sequential(nn.Linear(layer_input[i], layer_input[i + 1]),
-                                                 nn.ReLU(True)))
+                                                 activation(*activation_params)))
 
         self.layers.append(nn.Linear(layer_input[-1], output_size))
 
