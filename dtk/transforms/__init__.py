@@ -4,6 +4,7 @@ import math
 import torch
 from .video import CenterCropVideo, ToTensorVideo, NormalizeVideo, RandomHorizontalFlipVideo
 from .audio import AmplitudeToDB
+from .landmarks import RandomHorizontalFlipLandmarks
 
 
 class CutMix(object):

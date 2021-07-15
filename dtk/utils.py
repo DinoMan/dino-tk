@@ -1,13 +1,49 @@
 from functools import reduce
 import operator
 import numpy as np
+import re
 from numpy.linalg import inv
 import os, sys
 import tempfile
 
+
+class RegexMapper():
+    def __init__(self, regex, group):
+        self.regex = regex
+        self.group = group
+
+    def __getitem__(self, key):
+        match = re.search(self.regex, key)
+        return match.group(self.group)
+
+
+class RegexDict(dict):
+    def __init__(self, regex, group):
+        super(RegexDict, self).__init__()
+        self.regex = regex
+        self.group = group
+
+    def __getitem__(self, key):
+        match = re.search(self.regex, key)
+        if match is not None:
+            projected_key = match.group(self.group)
+        else:
+            raise KeyError('Key does not conform')
+
+        return super().__getitem__(projected_key)
+
+    def __setitem__(self, key, value):
+        match = re.search(self.regex, key)
+        if match is not None:
+            projected_key = match.group(self.group)
+        else:
+            raise KeyError('Key does not conform')
+
+        return super().__setitem__(projected_key, value)
+
 def get_temp_path(ext=""):
     file_path = next(tempfile._get_candidate_names()) + ext
-    if os.path.exists("/tmp"):# If tmp exists then prepend to the path
+    if os.path.exists("/tmp"):  # If tmp exists then prepend to the path
         file_path = "/tmp/" + file_path
 
     return file_path
