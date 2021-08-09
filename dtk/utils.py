@@ -8,13 +8,17 @@ import tempfile
 
 
 class RegexMapper():
-    def __init__(self, regex, group):
+    def __init__(self, regex, group, map=None):
         self.regex = regex
         self.group = group
+        self.map = map
 
     def __getitem__(self, key):
         match = re.search(self.regex, key)
-        return match.group(self.group)
+        if self.map is None:
+            return match.group(self.group)
+        else:
+            return self.map[match.group(self.group)]
 
 
 class RegexDict(dict):
@@ -41,6 +45,7 @@ class RegexDict(dict):
 
         return super().__setitem__(projected_key, value)
 
+
 def get_temp_path(ext=""):
     file_path = next(tempfile._get_candidate_names()) + ext
     if os.path.exists("/tmp"):  # If tmp exists then prepend to the path
@@ -48,8 +53,10 @@ def get_temp_path(ext=""):
 
     return file_path
 
+
 def swp_extension(file, ext):
     return os.path.splitext(file)[0] + ext
+
 
 class suppress_stdout:
     def __enter__(self):
@@ -59,6 +66,7 @@ class suppress_stdout:
     def __exit__(self, exc_type, exc_val, exc_tb):
         sys.stdout.close()
         sys.stdout = self._original_stdout
+
 
 def run_once(f):
     def wrapper(*args, **kwargs):

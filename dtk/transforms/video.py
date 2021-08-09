@@ -1,6 +1,8 @@
 import numbers
 import random
 import torch
+import cv2
+import numpy as np
 
 
 def _is_tensor_video_clip(clip):
@@ -25,6 +27,31 @@ def crop(clip, i, j, h, w):
 def resize(clip, target_size, interpolation_mode):
     assert len(target_size) == 2, "target size should be tuple (height, width)"
     return torch.nn.functional.interpolate(clip, size=target_size, mode=interpolation_mode)
+
+
+def binarize(clip, binarization_threshold="adaptive", find_largest_blob=False):
+    frames = clip.detach().cpu().numpy()
+
+    bin_frames = []
+    for frame in frames:
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if binarization_threshold == "otsu":
+            _, frame = cv2.threshold(frame, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        elif binarization_threshold == "adaptive":
+            frame = cv2.adaptiveThreshold(frame, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+        else:
+            _, frame = cv2.threshold(frame, int(255 * binarization_threshold), 255, cv2.THRESH_BINARY)
+
+        if find_largest_blob:
+            try:
+                contours, hierarchy = cv2.findContours(frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                c = max(contours, key=cv2.contourArea)
+                frame = cv2.drawContours(np.zeros_like(frame), [c], -1, color=255, thickness=cv2.FILLED)
+            except ValueError:
+                pass
+        bin_frames.append(torch.from_numpy(frame).unsqueeze(0))
+
+    return torch.cat(bin_frames).unsqueeze(-1)
 
 
 def center_crop(clip, crop_size):
@@ -80,6 +107,19 @@ def hflip(clip):
     """
     assert _is_tensor_video_clip(clip), "clip should be a 4D torch.tensor"
     return clip.flip((-1))
+
+
+class BinarizeVideo(object):
+    def __init__(self, binarization_threshold="adaptive", find_largest_blob=False):
+        self.binarization_threshold = binarization_threshold
+        self.find_largest_blob = find_largest_blob
+
+    def __call__(self, clip):
+        return binarize(clip, self.binarization_threshold, self.find_largest_blob)
+
+    def __repr__(self):
+        r = self.__class__.__name__ + "(Binarization={0}".format(self.binarization_threshold) + "(Largest Blob={0}".format(self.find_largest_blob)
+        return r
 
 
 class CenterCropVideo(object):
