@@ -149,3 +149,25 @@ class L2Loss(nn.Module):
             loss /= nb_tokens
 
         return loss
+
+
+class DICE(nn.Module):
+    def __init__(self):
+        super(DICE, self).__init__()
+        self.smooth = 1.
+
+    def forward(self, pred, gt, lengths=None):
+        batch_size = pred.size(0)
+        if lengths is None:
+            dice = (2 * pred * gt + self.smooth).sum() / ((pred ** 2).sum() + (gt ** 2).sum() + self.smooth)
+            loss = 1 - dice / batch_size
+        else:
+            loss = 0
+            for idx, seq_len in enumerate(lengths):
+                dice = (2 * pred[idx, :seq_len] * gt[idx, :seq_len] + self.smooth).sum() / (
+                        (pred[idx, :seq_len] ** 2).sum() + (gt[idx, :seq_len] ** 2).sum() + self.smooth)
+                loss += dice
+
+            loss = 1 - loss / batch_size
+
+        return loss
