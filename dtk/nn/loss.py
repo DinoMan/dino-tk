@@ -159,15 +159,33 @@ class DICE(nn.Module):
     def forward(self, pred, gt, lengths=None):
         batch_size = pred.size(0)
         if lengths is None:
-            dice = (2 * pred * gt + self.smooth).sum() / ((pred ** 2).sum() + (gt ** 2).sum() + self.smooth)
+            dice = (2 * (pred * gt).sum() + self.smooth) / ((pred ** 2).sum() + (gt ** 2).sum() + self.smooth)
             loss = 1 - dice / batch_size
         else:
             loss = 0
             for idx, seq_len in enumerate(lengths):
-                dice = (2 * pred[idx, :seq_len] * gt[idx, :seq_len] + self.smooth).sum() / (
+                dice = (2 * (pred[idx, :seq_len] * gt[idx, :seq_len]).sum() + self.smooth) / (
                         (pred[idx, :seq_len] ** 2).sum() + (gt[idx, :seq_len] ** 2).sum() + self.smooth)
                 loss += dice
 
             loss = 1 - loss / batch_size
+
+        return loss
+
+
+class BCE(nn.Module):
+    def __init__(self):
+        super(BCE, self).__init__()
+
+    def forward(self, pred, gt, lengths=None):
+        batch_size = pred.size(0)
+        if lengths is None:
+            loss = F.binary_cross_entropy(pred.view(batch_size, -1), gt.view(batch_size, -1))
+        else:
+            loss = 0
+            for idx, seq_len in enumerate(lengths):
+                loss += F.binary_cross_entropy(pred[idx, :seq_len].view(batch_size, -1), gt[idx, :seq_len].view(batch_size, -1))
+
+            loss = loss / batch_size
 
         return loss
