@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch
 from .utils import same_padding
+from .activations import Swish
 from torchvision.models.resnet import BasicBlock, Bottleneck, conv1x1
 import torch.nn.functional as F
 from math import exp
@@ -431,13 +432,15 @@ class SelfAttn1D(nn.Module):
 class ResNetBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
+    def __init__(self, inplanes, planes, stride=1, downsample=None, activation=Swish, activation_params=[]):
         super(ResNetBlock, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.relu = nn.ReLU(inplace=True)
+
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
+        self.activation1 = activation(*activation_params)
+        self.activation2 = activation(*activation_params)
         self.downsample = downsample
         self.stride = stride
 
@@ -446,7 +449,7 @@ class ResNetBlock(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
+        out = self.activation1(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
@@ -455,13 +458,14 @@ class ResNetBlock(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = self.relu(out)
+        out = self.activation2(out)
 
         return out
 
 
 class ResNet2D(nn.Module):
-    def __init__(self, latent, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], zero_init_residual=False):
+    def __init__(self, latent, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], zero_init_residual=False,
+                 activation=Swish, act_params=[]):
         super(ResNet2D, self).__init__()
         self.inplanes = 3
         self.channels = channels
@@ -470,13 +474,13 @@ class ResNet2D(nn.Module):
         self.resnet_blocks = nn.ModuleList()
 
         for i, l in enumerate(layers):
-            self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2))
-        self.resnet_blocks.append(self._make_layer(block, self.latent, 1))
+            self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2, activation=activation, activation_params=act_params))
+        self.resnet_blocks.append(self._make_layer(block, self.latent, 1, activation=activation, activation_params=act_params))
         self.resnet_blocks.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -491,7 +495,7 @@ class ResNet2D(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def _make_layer(self, block, planes, blocks, stride=1):
+    def _make_layer(self, block, planes, blocks, stride=1, activation="swish"):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
@@ -500,7 +504,7 @@ class ResNet2D(nn.Module):
             )
 
         layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers.append(block(self.inplanes, planes, stride, downsample, activation=activation))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(block(self.inplanes, planes))
@@ -525,31 +529,35 @@ class ResNet2D(nn.Module):
 
 
 class ResNet3D(nn.Module):
-    def __init__(self, code_size, block=ResNetBlock, layers=[2, 2, 2, 2], channels=3, feature_maps=[64, 128, 256, 512], window_size=5,
-                 zero_init_residual=False):
+    def __init__(self, code_size, block=ResNetBlock, layers=[2, 2, 2], channels=3, feature_maps=[64, 128, 256], window_size=5,
+                 zero_init_residual=False, activation=Swish, act_params=[]):
         super(ResNet3D, self).__init__()
         self.inplanes = feature_maps[0]
         self.channels = channels
         self.feature_maps = feature_maps
         self.code_size = code_size
+        layers += [2]
+        feature_maps += [code_size]
 
-        self.resnet_blocks = nn.ModuleList()
         self.front_end = nn.Sequential(
             nn.Conv3d(channels, self.feature_maps[0], kernel_size=(window_size, 7, 7), stride=(1, 2, 2), padding=(window_size // 2, 3, 3),
                       bias=False),
             nn.BatchNorm3d(self.feature_maps[0]),
-            nn.ReLU(inplace=True),
+            activation(*act_params),
             nn.MaxPool3d(kernel_size=(1, 3, 3), stride=(1, 2, 2), padding=(0, 1, 1))
         )
+        self.resnet_blocks = nn.ModuleList()
 
         for i, l in enumerate(layers):
-            self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2))
-        self.resnet_blocks.append(self._make_layer(block, self.code_size, 1))
+            if i == 0:
+                self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=1))
+            else:
+                self.resnet_blocks.append(self._make_layer(block, self.feature_maps[i], l, stride=2))
         self.resnet_blocks.append(nn.AdaptiveAvgPool2d((1, 1)))
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)

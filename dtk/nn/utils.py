@@ -289,3 +289,28 @@ def crop(images, centres, window):
         cropped.append(image[:, start_h:end_h, start_w:end_w].unsqueeze(0))
 
     return torch.cat(cropped)
+
+
+def make_pad_mask(lengths):
+    if not isinstance(lengths, list):
+        lengths = lengths.tolist()
+    bs = int(len(lengths))
+    maximum_len = int(max(lengths))
+
+    seq_range = torch.arange(0, maximum_len, dtype=torch.int64)
+    seq_range_expand = seq_range.unsqueeze(0).expand(bs, maximum_len)
+    seq_length_expand = seq_range_expand.new(lengths).unsqueeze(-1)
+    mask = seq_range_expand >= seq_length_expand
+    return mask
+
+
+def make_non_pad_mask(lengths):
+    return ~make_pad_mask(lengths)
+
+
+def mask_by_length(xs, lengths, fill=0):
+    assert xs.size(0) == len(lengths)
+    ret = xs.data.new(*xs.size()).fill_(fill)
+    for i, l in enumerate(lengths):
+        ret[i, :l] = xs[i, :l]
+    return ret
