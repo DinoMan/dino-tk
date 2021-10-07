@@ -85,7 +85,7 @@ def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
 
 
 def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overlay_pts=None, ffmpeg_experimental=False):
-    success = True    
+    success = True
     out_size = (scale * video.shape[-1], scale * video.shape[-2])
     video_path = get_temp_path(ext=".mp4")
     if torch.is_tensor(video):
@@ -146,7 +146,10 @@ def save_video(path, video, fps=25, scale=2, audio=None, audio_rate=16000, overl
 def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
     temp_file = get_temp_path(ext=".mp4")
     save_video(temp_file, video, audio=audio, fps=fps, audio_rate=audio_rate)
-    stream = BytesIO(open(temp_file, "rb").read())
+
+    f = open(temp_file, "rb")
+    stream = BytesIO(f.read())
+    f.close()
 
     if os.path.isfile(temp_file):
         os.remove(temp_file)
@@ -219,7 +222,10 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
 def joint_animation_to_stream(points, edges, fps=25, audio=None, audio_rate=16000, colour=None):
     temp_file = get_temp_path(ext=".mp4")
     save_joint_animation(temp_file, points, edges, fps=fps, audio=audio, audio_rate=audio_rate, colour=colour)
-    stream = BytesIO(open(temp_file, "rb").read())
+
+    f = open(temp_file, "rb")
+    stream = BytesIO(f.read())
+    f.close()
 
     if os.path.isfile(temp_file):
         os.remove(temp_file)
