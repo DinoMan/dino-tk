@@ -588,17 +588,23 @@ class ResNet3D(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x, retain_intermediate=False):
         length = x.size(1)
         x = x.transpose(1, 2)
         x = self.front_end(x)
         x = x.transpose(1, 2)
         x = x.contiguous()
         x = x.view(-1, self.feature_maps[0], x.size(3), x.size(4))
+        h = []
         for blk in self.resnet_blocks:
+            if retain_intermediate:
+                h.append(x)
             x = blk(x)
 
-        return x.view(-1, length, self.code_size)
+        if retain_intermediate:
+            return x.view(-1, length, self.code_size), h
+        else:
+            return x.view(-1, length, self.code_size)
 
 
 class Deconv2D(nn.Module):

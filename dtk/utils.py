@@ -7,6 +7,18 @@ import os, sys
 import tempfile
 
 
+class Labeler():
+    def __init__(self, keys=[]):
+        self.map = {emotion: label for label, emotion in enumerate(keys)}
+
+    def __getitem__(self, key):
+        if key in self.map:
+            return self.map[key]
+        else:
+            self.map[key] = len(self.map)
+            return self.map[key]
+
+
 class RegexMapper():
     def __init__(self, regex, group, map=None):
         self.regex = regex
