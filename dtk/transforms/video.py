@@ -3,6 +3,7 @@ import random
 import torch
 import cv2
 import numpy as np
+import torchvision.transforms.functional as F
 
 
 def _is_tensor_video_clip(clip):
@@ -118,8 +119,71 @@ class BinarizeVideo(object):
         return binarize(clip, self.binarization_threshold, self.find_largest_blob)
 
     def __repr__(self):
-        r = self.__class__.__name__ + "(Binarization={0}".format(self.binarization_threshold) + "(Largest Blob={0}".format(self.find_largest_blob)
+        r = self.__class__.__name__ + "(Binarization={0}".format(
+            self.binarization_threshold) + "(Largest Blob={0}".format(self.find_largest_blob)
         return r
+
+
+class ColorJitterVideo(object):
+    def __init__(self, brightness=0, contrast=0, saturation=0, hue=0):
+        self.brightness = self._check_input(brightness, 'brightness')
+        self.contrast = self._check_input(contrast, 'contrast')
+        self.saturation = self._check_input(saturation, 'saturation')
+        self.hue = self._check_input(hue, 'hue', center=0, bound=(-0.5, 0.5), clip_first_on_zero=False)
+
+    def _check_input(self, value, name, center=1, bound=(0, float('inf')), clip_first_on_zero=True):
+        if isinstance(value, numbers.Number):
+            if value < 0:
+                raise ValueError("If {} is a single number, it must be non negative.".format(name))
+            value = [center - float(value), center + float(value)]
+            if clip_first_on_zero:
+                value[0] = max(value[0], 0.0)
+        elif isinstance(value, (tuple, list)) and len(value) == 2:
+            if not bound[0] <= value[0] <= value[1] <= bound[1]:
+                raise ValueError("{} values should be between {}".format(name, bound))
+        else:
+            raise TypeError("{} should be a single number or a list/tuple with length 2.".format(name))
+
+        # if value is 0 or (1., 1.) for brightness/contrast/saturation or (0., 0.) for hue, do nothing
+        if value[0] == value[1] == center:
+            value = None
+        return value
+
+    @staticmethod
+    def get_params(brightness=0.0, contrast=0.0, saturation=0.0, hue=0.0):
+
+        fn_idx = torch.randperm(4)
+        b = None if brightness is None else float(torch.empty(1).uniform_(brightness[0], brightness[1]))
+        c = None if contrast is None else float(torch.empty(1).uniform_(contrast[0], contrast[1]))
+        s = None if saturation is None else float(torch.empty(1).uniform_(saturation[0], saturation[1]))
+        h = None if hue is None else float(torch.empty(1).uniform_(hue[0], hue[1]))
+
+        return fn_idx, b, c, s, h
+
+    def __call__(self, clip):
+        fn_idx, bright, contrast, sat, hue = self.get_params(self.brightness, self.contrast, self.saturation, self.hue)
+        frames = []
+        for frame in clip:
+            for fn_id in fn_idx:
+                if fn_id == 0 and bright is not None:
+                    frame = F.adjust_brightness(frame, bright)
+                elif fn_id == 1 and contrast is not None:
+                    frame = F.adjust_contrast(frame, contrast)
+                elif fn_id == 2 and sat is not None:
+                    frame = F.adjust_saturation(frame, sat)
+                elif fn_id == 3 and hue is not None:
+                    frame = F.adjust_hue(frame, hue)
+
+            frames += [frame.unsqueeze(0)]
+        return torch.cat(frames)
+
+    def __repr__(self):
+        format_string = self.__class__.__name__ + '('
+        format_string += 'brightness={0}'.format(self.brightness)
+        format_string += ', contrast={0}'.format(self.contrast)
+        format_string += ', saturation={0}'.format(self.saturation)
+        format_string += ', hue={0})'.format(self.hue)
+        return format_string
 
 
 class CenterCropVideo(object):

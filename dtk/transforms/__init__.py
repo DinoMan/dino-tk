@@ -2,7 +2,7 @@ import random
 import numpy as np
 import math
 import torch
-from .video import CenterCropVideo, ToTensorVideo, NormalizeVideo, RandomHorizontalFlipVideo, BinarizeVideo
+from .video import CenterCropVideo, ToTensorVideo, NormalizeVideo, RandomHorizontalFlipVideo, BinarizeVideo, ColorJitterVideo
 from .audio import AmplitudeToDB
 from .landmarks import RandomHorizontalFlipLandmarks
 

@@ -16,5 +16,7 @@ setup(name='dtk',
           'numpy',
           'scikit-image',
           'arrow',
+          'opencv-python',
+          'ffmpeg-python',
       ],
       zip_safe=False)

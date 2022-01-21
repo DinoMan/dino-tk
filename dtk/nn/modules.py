@@ -24,7 +24,7 @@ class NoiseInjection2D(nn.Module):
 
 
 class RGB2GRAY(nn.Module):
-    def __init__(self, weights=(1, 1, 1)):
+    def __init__(self, weights=(0.2989, 0.587, 0.114)):
         super(RGB2GRAY, self).__init__()
         self.weights = weights
 
