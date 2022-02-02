@@ -39,7 +39,7 @@ class GradientPenalty(nn.Module):
         super(GradientPenalty, self).__init__()
         self.l = l
 
-    def forward(self, real, fake, func, cond=None):
+    def forward(self, real, fake, func, cond=None, output_idx=0):
         # The alpha parameter helps interpolate between real and generated data
         alpha = torch.rand([real.size()[0]], device=real.device, requires_grad=True)
         for i in range(real.dim() - 1):
@@ -51,6 +51,9 @@ class GradientPenalty(nn.Module):
             func_interpolates = func(interpolates)
         else:  # If we have a condition then feed it to the critic
             func_interpolates = func(interpolates, *cond)
+
+        if isinstance(func_interpolates, tuple):
+            func_interpolates = func_interpolates[output_idx]
 
         # get the gradient of the function at the interpolates
         gradients = autograd.grad(outputs=func_interpolates, inputs=interpolates,
@@ -184,7 +187,8 @@ class BCE(nn.Module):
         else:
             loss = 0
             for idx, seq_len in enumerate(lengths):
-                loss += F.binary_cross_entropy(pred[idx, :seq_len].view(batch_size, -1), gt[idx, :seq_len].view(batch_size, -1))
+                loss += F.binary_cross_entropy(pred[idx, :seq_len].view(batch_size, -1),
+                                               gt[idx, :seq_len].view(batch_size, -1))
 
             loss = loss / batch_size
 
