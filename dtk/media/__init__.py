@@ -157,7 +157,8 @@ def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
     return stream
 
 
-def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), rotate=None, ffmpeg_experimental=False):
+def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), rotate=None,
+                         ffmpeg_experimental=False, enumerate_points=False):
     if points.ndim == 3 and points.shape[2] > 3:
         warnings.warn("points have dimension larger than 3", RuntimeWarning)
 
@@ -186,11 +187,15 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
         canvas = np.ones((width, height, 3))
         canvas *= (255, 255, 255)  # canvas is by default white
 
-        for node in frame:
-            cv2.circle(canvas, (int(node[0]), int(node[1])), 2, colour, -1)
+        for number, node in enumerate(frame):
+            if enumerate_points:
+                cv2.putText(canvas, str(number), (int(node[0]), int(node[1])), CV_FONT_HERSHEY_SIMPLEX, 2, color, 2)
+            else:
+                cv2.circle(canvas, (int(node[0]), int(node[1])), 2, colour, -1)
 
         for edge in edges:
-            cv2.line(canvas, (int(frame[edge[0]][0]), int(frame[edge[0]][1])), (int(frame[edge[1]][0]), int(frame[edge[1]][1])), colour, 1)
+            cv2.line(canvas, (int(frame[edge[0]][0]), int(frame[edge[0]][1])),
+                     (int(frame[edge[1]][0]), int(frame[edge[1]][1])), colour, 1)
 
         video.write(canvas.astype('uint8'))
     video.release()
@@ -219,9 +224,10 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
     return True
 
 
-def joint_animation_to_stream(points, edges, fps=25, audio=None, audio_rate=16000, colour=None):
+def joint_animation_to_stream(points, edges, fps=25, audio=None, audio_rate=16000, colour=None, enumerate_points=False):
     temp_file = get_temp_path(ext=".mp4")
-    save_joint_animation(temp_file, points, edges, fps=fps, audio=audio, audio_rate=audio_rate, colour=colour)
+    save_joint_animation(temp_file, points, edges, fps=fps, audio=audio, audio_rate=audio_rate, colour=colour,
+                         enumerate_points=enumerate_points)
 
     f = open(temp_file, "rb")
     stream = BytesIO(f.read())
