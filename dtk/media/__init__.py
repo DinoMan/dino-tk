@@ -9,6 +9,7 @@ import cv2
 import copy
 from scipy.spatial.transform import Rotation as R
 from dtk.utils import get_temp_path, swp_extension
+import colorsys
 
 FACE_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10),
               (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16),  # chin
@@ -44,15 +45,12 @@ def format_spectrogram(spectrogram, contrast=1, colormap=cv2.COLORMAP_BONE, norm
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
+def overlay_points(data, overlay_points, color=1, radius=2):
     try:
         if torch.is_tensor(data):
-            frames = data
+            frames = data.detach().cpu().numpy()
         else:
-            frames = torch.from_numpy(data)
-
-        if not inplace:
-            frames = frames.clone()
+            frames = data.copy()
 
         if torch.is_tensor(overlay_points):
             overlay_pts = overlay_points.squeeze().detach().cpu().numpy()
@@ -60,24 +58,18 @@ def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
             overlay_pts = overlay_points
 
         overlay_pts = overlay_pts.reshape(-1, overlay_points.shape[-2], overlay_points.shape[-1])
-
-        mask = np.zeros((overlay_pts.shape[0], frames.shape[-2], frames.shape[-1]))
+        no_points = overlay_points.shape[-2]
         for i, pts in enumerate(overlay_pts):
-            for pt in pts:
-                cv2.circle(mask[i], (int(pt[0]), int(pt[1])), radius, 1, -1)
-
-        mask = torch.from_numpy(mask).bool().to(frames.device)
-
-        while frames.dim() < 4:
-            frames = frames.unsqueeze(0)
-
-        for i, channel_color in enumerate(color):
-            frames[:, i] = frames[:, i].masked_fill(mask, channel_color)
+            for pt_no, pt in enumerate(pts):
+                if color is None:
+                    hue = pt_no / no_points
+                    color = colorsys.hsv_to_rgb(hue, 1, 1)
+                cv2.circle(frame[i], (int(pt[0]), int(pt[1])), radius, color, -1)
 
         if torch.is_tensor(data):
-            return frames
+            return frames.from_numpy(data)
         else:
-            return frames.detach().cpu().numpy()
+            return frames
 
     except Exception as e:
         warnings.warn("number of frames do not match", RuntimeWarning)
@@ -158,7 +150,7 @@ def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
 
 
 def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), rotate=None,
-                         ffmpeg_experimental=False, enumerate_points=False):
+                         ffmpeg_experimental=False):
     if points.ndim == 3 and points.shape[2] > 3:
         warnings.warn("points have dimension larger than 3", RuntimeWarning)
 
@@ -187,11 +179,8 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
         canvas = np.ones((width, height, 3))
         canvas *= (255, 255, 255)  # canvas is by default white
 
-        for number, node in enumerate(frame):
-            if enumerate_points:
-                cv2.putText(canvas, str(number), (int(node[0]), int(node[1])), CV_FONT_HERSHEY_SIMPLEX, 2, color, 2)
-            else:
-                cv2.circle(canvas, (int(node[0]), int(node[1])), 2, colour, -1)
+        for node in frame:
+            cv2.circle(canvas, (int(node[0]), int(node[1])), 2, colour, -1)
 
         for edge in edges:
             cv2.line(canvas, (int(frame[edge[0]][0]), int(frame[edge[0]][1])),
@@ -224,10 +213,9 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
     return True
 
 
-def joint_animation_to_stream(points, edges, fps=25, audio=None, audio_rate=16000, colour=None, enumerate_points=False):
+def joint_animation_to_stream(points, edges, fps=25, audio=None, audio_rate=16000, colour=None):
     temp_file = get_temp_path(ext=".mp4")
-    save_joint_animation(temp_file, points, edges, fps=fps, audio=audio, audio_rate=audio_rate, colour=colour,
-                         enumerate_points=enumerate_points)
+    save_joint_animation(temp_file, points, edges, fps=fps, audio=audio, audio_rate=audio_rate, colour=colour)
 
     f = open(temp_file, "rb")
     stream = BytesIO(f.read())
