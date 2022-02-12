@@ -45,12 +45,15 @@ def format_spectrogram(spectrogram, contrast=1, colormap=cv2.COLORMAP_BONE, norm
     return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 
-def overlay_points(data, overlay_points, color=1, radius=2):
+def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
     try:
         if torch.is_tensor(data):
-            frames = data.detach().cpu().numpy()
+            frames = data
         else:
-            frames = data.copy()
+            frames = torch.from_numpy(data)
+
+        if not inplace:
+            frames = frames.clone()
 
         if torch.is_tensor(overlay_points):
             overlay_pts = overlay_points.squeeze().detach().cpu().numpy()
@@ -58,18 +61,39 @@ def overlay_points(data, overlay_points, color=1, radius=2):
             overlay_pts = overlay_points
 
         overlay_pts = overlay_pts.reshape(-1, overlay_points.shape[-2], overlay_points.shape[-1])
+
         no_points = overlay_points.shape[-2]
+        if color is None:
+            no_colors = no_points
+        else:
+            no_colors = 1
+
+        mask = np.zeros((no_colors, overlay_pts.shape[0], frames.shape[-2], frames.shape[-1]))
         for i, pts in enumerate(overlay_pts):
-            for pt_no, pt in enumerate(pts):
-                if color is None:
-                    hue = pt_no / no_points
-                    color = colorsys.hsv_to_rgb(hue, 1, 1)
-                cv2.circle(frame[i], (int(pt[0]), int(pt[1])), radius, color, -1)
+            for color_idx, pt in enumerate(pts):
+                if color is not None:
+                    color_idx = 0
+                cv2.circle(mask[color_idx, i], (int(pt[0]), int(pt[1])), radius, 1, -1)
+
+        mask = torch.from_numpy(mask).bool().to(frames.device)
+
+        while frames.dim() < 4:
+            frames = frames.unsqueeze(0)
+
+        for color_idx in range(no_colors):
+            if color is None:
+                hue = color_idx / no_points
+                mask_color = colorsys.hsv_to_rgb(hue, 1, 1)
+            else:
+                mask_color = color
+
+            for i, channel_color in enumerate(color):
+                frames[:, i] = frames[:, i].masked_fill(mask[color_idx], channel_color)
 
         if torch.is_tensor(data):
-            return frames.from_numpy(data)
-        else:
             return frames
+        else:
+            return frames.detach().cpu().numpy()
 
     except Exception as e:
         warnings.warn("number of frames do not match", RuntimeWarning)
@@ -149,8 +173,7 @@ def video_to_stream(video, audio=None, fps=25, audio_rate=16000):
     return stream
 
 
-def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), rotate=None,
-                         ffmpeg_experimental=False):
+def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=16000, colour=(255, 0, 0), rotate=None, ffmpeg_experimental=False):
     if points.ndim == 3 and points.shape[2] > 3:
         warnings.warn("points have dimension larger than 3", RuntimeWarning)
 
@@ -183,8 +206,7 @@ def save_joint_animation(path, points, edges, fps=25, audio=None, audio_rate=160
             cv2.circle(canvas, (int(node[0]), int(node[1])), 2, colour, -1)
 
         for edge in edges:
-            cv2.line(canvas, (int(frame[edge[0]][0]), int(frame[edge[0]][1])),
-                     (int(frame[edge[1]][0]), int(frame[edge[1]][1])), colour, 1)
+            cv2.line(canvas, (int(frame[edge[0]][0]), int(frame[edge[0]][1])), (int(frame[edge[1]][0]), int(frame[edge[1]][1])), colour, 1)
 
         video.write(canvas.astype('uint8'))
     video.release()
