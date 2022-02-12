@@ -87,7 +87,7 @@ def overlay_points(data, overlay_points, color=1, radius=2, inplace=False):
             else:
                 mask_color = color
 
-            for i, channel_color in enumerate(color):
+            for i, channel_color in enumerate(mask_color):
                 frames[:, i] = frames[:, i].masked_fill(mask[color_idx], channel_color)
 
         if torch.is_tensor(data):
