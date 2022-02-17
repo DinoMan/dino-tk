@@ -93,8 +93,8 @@ def normalize(clip, mean, std, inplace=False):
     assert _is_tensor_video_clip(clip), "clip should be a 4D torch.tensor"
     if not inplace:
         clip = clip.clone()
-    mean = torch.as_tensor(mean, dtype=clip.dtype, device=clip.device)
-    std = torch.as_tensor(std, dtype=clip.dtype, device=clip.device)
+    mean = torch.as_tensor(mean).type_as(clip)
+    std = torch.as_tensor(std).type_as(clip)
     clip.sub_(mean[None, :, None, None]).div_(std[None, :, None, None])
     return clip
 

@@ -36,7 +36,7 @@ def save_audio(path, audio, audio_rate=16000):
 
 
 def format_spectrogram(spectrogram, contrast=1, colormap=cv2.COLORMAP_BONE, normalize=False):
-    img = spectrogram.squeeze().detach().cpu().numpy()
+    img = spectrogram.squeeze().detach().cpu().numpy().astype(np.float32)
     if normalize:
         img = np.clip(img - img.mean(), -img.std(), img.std())
 

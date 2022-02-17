@@ -131,7 +131,7 @@ class RelPositionMultiHeadedAttention(MultiHeadedAttention):
         :param torch.Tensor x: (batch, time, size)
         :param bool zero_triu: return the lower triangular part of the matrix
         """
-        zero_pad = torch.zeros((*x.size()[:3], 1), device=x.device, dtype=x.dtype)
+        zero_pad = torch.zeros((*x.size()[:3], 1)).type_as(x)
         x_padded = torch.cat([zero_pad, x], dim=-1)
 
         x_padded = x_padded.view(*x.size()[:2], x.size(3) + 1, x.size(2))
