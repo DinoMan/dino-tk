@@ -7,7 +7,7 @@ import os
 import collections
 
 
-class Checkpoint():
+class Checkpoint:
     def __init__(self, path, model_name, save_every=3, circular=-1, epoch=1):
         self.path = path
         if not os.path.exists(path) and path != "":
@@ -126,7 +126,7 @@ def pad_n_stack_sequences(seq_list, order=None, max_length=None):
         for item in sorted(zipped, key=lambda x: x[0], reverse=True):
             size, seq, index = item
             if size > max_length:
-                seq = seq[:(max_length - size)]
+                seq = seq[: (max_length - size)]
                 size = max_length
             elif size < max_length:
                 seq = pad(seq, max_length)
@@ -141,7 +141,7 @@ def pad_n_stack_sequences(seq_list, order=None, max_length=None):
             size = sizes[idx]
             seq = seq_list[idx]
             if size > max_length:
-                seq = seq[:(max_length - size)]
+                seq = seq[: (max_length - size)]
                 size = max_length
             elif size < max_length:
                 seq = pad(seq, max_length)
@@ -160,45 +160,45 @@ def get_seq_output(batch, lengths, feature_size):
 
 def get_current_lr(optimizer):
     for param_group in optimizer.param_groups:
-        return param_group['lr']
+        return param_group["lr"]
 
 
-def initialization(weights, type='xavier', init=None):
-    if type == 'normal':
+def initialization(weights, type="xavier", init=None):
+    if type == "normal":
         if init is None:
             torch.nn.init.normal_(weights)
         else:
             torch.nn.init.normal_(weights, mean=init[0], std=init[1])
-    elif type == 'xavier':
+    elif type == "xavier":
         if init is None:
             torch.nn.init.xavier_normal_(weights)
         else:
             torch.nn.init.xavier_normal_(weights, gain=init)
-    elif type == 'kaiming':
+    elif type == "kaiming":
         torch.nn.init.kaiming_normal_(weights)
-    elif type == 'orthogonal':
+    elif type == "orthogonal":
         if init is None:
             torch.nn.init.orthogonal_(weights)
         else:
             torch.nn.init.orthogonal_(weights, gain=init)
     else:
-        raise NotImplementedError('Unknown initialization method')
+        raise NotImplementedError("Unknown initialization method")
 
 
-def initialize_weights(net, type='xavier', init=None, init_bias=False, batchnorm_shift=None):
+def initialize_weights(net, type="xavier", init=None, init_bias=False, batchnorm_shift=None):
     def init_func(m):
         classname = m.__class__.__name__
-        if hasattr(m, 'weight') and (classname.find('Conv') != -1 or classname.find('Linear') != -1):
+        if hasattr(m, "weight") and (classname.find("Conv") != -1 or classname.find("Linear") != -1):
             initialization(m.weight, type=type, init=init)
-            if init_bias and hasattr(m, 'bias') and m.bias is not None:
+            if init_bias and hasattr(m, "bias") and m.bias is not None:
                 torch.nn.init.constant_(m.bias.data, 0.0)
-        elif classname.find('BatchNorm') != -1 and batchnorm_shift is not None:
+        elif classname.find("BatchNorm") != -1 and batchnorm_shift is not None:
             torch.nn.init.normal_(m.weight, 1.0, batchnorm_shift)
             torch.nn.init.constant_(m.bias, 0.0)
         elif isinstance(m, nn.GRU) or isinstance(m, nn.LSTM):
             for layer_params in m._all_weights:
                 for param in layer_params:
-                    if 'weight' in param:
+                    if "weight" in param:
                         initialization(m._parameters[param])
 
     net.apply(init_func)
@@ -230,7 +230,7 @@ def subsample_batch(tensor, sample_size, indices=None, lengths=None):
 
     tensor_list = []
     for i, idx in enumerate(indices):
-        tensor_list.append(tensor[i, idx:idx + sample_size])
+        tensor_list.append(tensor[i, idx : idx + sample_size])
 
     return torch.stack(tensor_list).squeeze(), indices
 
@@ -253,7 +253,7 @@ def model_size(model, only_trainable=False):
         return sum(p.numel() for p in model.parameters())
 
 
-def crop(images, centres, window):
+def crop(images, centres, window, return_crops=False):
     b, c, h, w = images.size()
     if isinstance(window, int):
         window_w = window
@@ -264,6 +264,7 @@ def crop(images, centres, window):
 
     centres = centres.squeeze()
     cropped = []
+    crops = []
     for i, image in enumerate(images):
         start_w = int(centres[i, 0].detach().cpu().numpy()) - window_w // 2
         end_w = int(centres[i, 0].detach().cpu().numpy()) + window_w // 2
@@ -287,7 +288,10 @@ def crop(images, centres, window):
             end_w = w
 
         cropped.append(image[:, start_h:end_h, start_w:end_w].unsqueeze(0))
+        crops.append([start_h, end_h, start_w, end_w])
 
+    if return_crops:
+        return torch.cat(cropped), crops
     return torch.cat(cropped)
 
 
